@@ -4,40 +4,68 @@ A production-grade, serverless ETL pipeline on AWS demonstrating Zero-Trust conf
 
 ---
 
+## Highlights
+
+- **542 Parquet partition files** written to S3 (`year/month/dept`) — verified via AWS CLI audit
+- **0 records with Salary ≤ 0** in DynamoDB — `EvaluateDataQuality` Circuit Breaker confirmed effective
+- **100 MB Athena scan guardrail** enforced at workgroup level (`EnforceWorkGroupConfiguration: true`)
+- **Zero-Trust config** — no ARN, bucket name, or secret in source code; all via SSM Parameter Store
+- **Customer-Managed KMS** encryption on all S3 buckets and DynamoDB; annual key rotation enabled
+- **IAM least-privilege** — every statement scoped to a specific resource ARN or prefix; no `Resource: "*"`
+- **SNS alerting mesh** — `cloudwatch.amazonaws.com` principal authorized in resource policy; fires within 1 min of failure
+- **Static Glue Catalog** (CDK `CfnTable`) — no Crawler DPU spend; schema authority lives in code
+- **G.1X × 2 workers, MaxRetries=0, Timeout=5 min** — FinOps guardrails against runaway DPU spend
+
+---
+
 ## Architecture
 
 ```mermaid
-flowchart LR
-    subgraph Ingestion
-        CSV["📄 Raw CSVs\n(S3 / raw bucket)"]
+flowchart TD
+    subgraph Ingestion ["Ingestion Layer"]
+        direction LR
+        S3A["S3 Assets Bucket\nCDK bootstrap artifact store"]
+        S3R["S3 Raw Bucket\nraw/employees/\nraw/managers/\nraw/departments/"]
+        S3A -->|"deploy.sh · aws s3 cp"| S3R
     end
 
-    subgraph Transform ["AWS Glue ETL (PySpark · G.1X × 2)"]
+    subgraph Transform ["Transform · AWS Glue 4.0 · PySpark · G.1X × 2 workers"]
         direction TB
-        CAT["Glue Data Catalog\nhr_analytics database"]
-        ETL["etl_job.py\nSilver layer → Broadcast joins\nWindow fn → DQ Gate → Circuit Breaker"]
+        CAT["Glue Data Catalog\nhr_analytics DB\nStatic CfnTable — no Crawler"]
+        SSM["SSM Parameter Store\n/hr-pipeline/*\nZero-Trust runtime config"]
+        ETL["etl_job.py\nBroadcast joins × 2\nWindow fn: CompaRatio · HighestTitleSalary\nRequiresReview flag"]
+        DQ["EvaluateDataQuality\nGlue 4.0 built-in transform\nIsComplete · ColumnValues > 0 · IsUnique"]
+        CB["Circuit Breaker\nRowOutcome=Error → quarantine log\nClean rows only proceed to sinks"]
+        ABORT["Job Abort\nNo partial write to any sink"]
         CAT --> ETL
+        SSM --> ETL
+        ETL --> DQ
+        DQ -->|"All rules PASS"| CB
+        DQ -->|"Any rule FAILS"| ABORT
     end
 
-    subgraph Serve
-        DDB["DynamoDB\nSingle-Table\nPK: EMP#id · SK: PROFILE"]
-        PQ["S3 Parquet\nHive-partitioned\nyear / month / dept"]
-        API["Lambda\nPython 3.12\nEmployee Profile API"]
-        ATH["Amazon Athena\nhr_analytics_wg\n100 MB scan cap"]
+    subgraph Serve ["Serving Layer"]
+        DDB["DynamoDB · Single-Table Design\nPK: EMP#id · SK: PROFILE\nComputed: CompaRatio · HighestTitleSalary · RequiresReview\nEncrypted: AWS-managed KMS"]
+        PQ["S3 Parquet Bucket · Partitioned Parquet\nHive layout: year= / month= / dept=\n542 files · SNAPPY compressed\nEncrypted: SSE-KMS (pipeline key)"]
+        API["Lambda · Python 3.12\nEmployee Profile API\nReads DynamoDB GetItem"]
     end
 
-    subgraph Observe
-        CW["CloudWatch\nDashboard + Alarm"]
-        SNS["SNS Topic\nhr-pipeline-alerts"]
+    subgraph Governance ["Governance · Cost Controls · Alerting"]
+        ATH["Amazon Athena\nWorkgroup: hr_analytics_wg\n100 MB scan guardrail\nEnforceWorkGroupConfiguration: true"]
+        CW["CloudWatch\nDashboard: hr-pipeline-observability\nAlarm: numFailedTasks > 0 · 1-min period"]
+        SNS["SNS Topic: hr-pipeline-alerts\nResource Policy:\nprincipal: cloudwatch.amazonaws.com\naction: sns:Publish"]
+        KMS["Customer-Managed KMS Key\nAnnual rotation enabled\nAll S3 buckets + DynamoDB"]
     end
 
-    CSV -->|"deploy.sh\naws s3 cp"| CAT
-    ETL -->|"DynamicFrame\nconnector"| DDB
-    ETL -->|"partitionBy\nyear/month/dept"| PQ
+    S3R --> CAT
+    CB -->|"DynamicFrame · BatchWriteItem"| DDB
+    CB -->|"partitionBy(year, month, dept)"| PQ
     DDB --> API
     PQ --> ATH
     ETL -->|"numFailedTasks > 0"| CW
     CW -->|"ALARM state"| SNS
+    KMS -. "SSE-KMS" .-> PQ
+    KMS -. "SSE-KMS" .-> S3R
 ```
 
 ---
