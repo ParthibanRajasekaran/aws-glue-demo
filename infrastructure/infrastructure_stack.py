@@ -175,7 +175,7 @@ class InfrastructureStack(Stack):
                 )
             ),
             glue_version=glue_alpha.GlueVersion.V4_0,
-            worker_type=glue_alpha.WorkerType.G_025X,
+            worker_type=glue_alpha.WorkerType.G_1X,
             number_of_workers=2,
             max_retries=0,
             timeout=Duration.minutes(5),
@@ -200,18 +200,15 @@ class InfrastructureStack(Stack):
         )
 
         # ── CloudWatch Log Retention ─────────────────────────────────────────────
-        for lg_name, lg_id in [
-            ("/aws-glue/jobs/logs-v2", "GlueLogV2"),
-            ("/aws-glue/jobs/error",   "GlueLogError"),
-            ("/aws-glue/jobs/output",  "GlueLogOutput"),
-        ]:
-            logs.LogGroup(
-                self,
-                lg_id,
-                log_group_name=lg_name,
-                retention=logs.RetentionDays.ONE_DAY,
-                removal_policy=RemovalPolicy.DESTROY,
-            )
+        # /aws-glue/jobs/logs-v2 and /aws-glue/jobs/error are auto-created by
+        # Glue on first run and already exist — CDK only manages /output.
+        logs.LogGroup(
+            self,
+            "GlueLogOutput",
+            log_group_name="/aws-glue/jobs/output",
+            retention=logs.RetentionDays.ONE_DAY,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
 
         # ── Glue Data Catalog ─────────────────────────────────────────────────────
         cfn_database = glue.CfnDatabase(
