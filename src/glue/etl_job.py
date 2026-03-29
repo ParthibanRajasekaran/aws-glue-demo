@@ -29,6 +29,7 @@ glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
+logger = glueContext.get_logger()
 
 # ── Configuration from SSM Parameter Store (Zero-Trust: no hardcoded names) ──
 
@@ -167,6 +168,31 @@ failed_rules = (
 if failed_rules.count() > 0:
     failed_rules.show(truncate=False)
     raise Exception("Data quality checks failed — aborting job before any writes.")
+
+# ── Step 6b: Row-level circuit breaker ────────────────────────────────────────
+# Even when aggregate rules pass, individual rows may still carry a bad
+# RowOutcome (null EmployeeID or non-positive Salary). Quarantine those rows:
+# log them to CloudWatch (visible in /aws-glue/jobs/output) and exclude them
+# from the DynamoDB write so corrupt records never reach production.
+_bad_rows = enriched.filter(
+    F.col("EmployeeID").isNull()
+    | F.col("Salary").isNull()
+    | (F.col("Salary") <= 0)
+)
+_bad_count = _bad_rows.count()
+if _bad_count > 0:
+    logger.error(
+        f"[DQ-CircuitBreaker] RowOutcome=Error on {_bad_count} record(s). "
+        "These rows are quarantined and will NOT be written to DynamoDB."
+    )
+    _bad_rows.select("EmployeeID", "Salary", "JobTitle").show(truncate=False)
+
+# Only rows with a clean RowOutcome proceed to both sinks.
+enriched = enriched.filter(
+    F.col("EmployeeID").isNotNull()
+    & F.col("Salary").isNotNull()
+    & (F.col("Salary") > 0)
+)
 
 # ── Step 7: DynamoDB sink via native Glue DynamicFrame connector ──────────────
 # DateType not serialisable by the DDB connector — cast HireDate back to string.
