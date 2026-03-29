@@ -17,6 +17,7 @@ from aws_cdk import (
     aws_lambda as lambda_,
     aws_logs as logs,
     aws_s3 as s3,
+    aws_s3_deployment as s3deploy,
     aws_sns as sns,
     aws_ssm as ssm,
 )
@@ -63,6 +64,20 @@ class InfrastructureStack(Stack):
             auto_delete_objects=True,
             encryption=s3.BucketEncryption.KMS,
             encryption_key=encryption_key,
+        )
+
+        # ── Glue Script Deployment — explicit scripts/ prefix ────────────────────
+        # Deploys src/glue/etl_job.py to s3://[assets-bucket]/scripts/etl_job.py.
+        # Using BucketDeployment instead of Code.from_asset() makes the script
+        # location predictable and auditable — no CDK-generated hash in the key.
+        glue_script_deployment = s3deploy.BucketDeployment(
+            self,
+            "GlueScriptDeployment",
+            sources=[s3deploy.Source.asset(
+                os.path.join(os.path.dirname(__file__), "..", "src", "glue")
+            )],
+            destination_bucket=assets_bucket,
+            destination_key_prefix="scripts",
         )
 
         # ── DynamoDB Single-Table ────────────────────────────────────────────────
@@ -171,13 +186,14 @@ class InfrastructureStack(Stack):
         )
 
         # ── Glue ETL Job ─────────────────────────────────────────────────────────
+        # Script is read from the explicit scripts/ prefix deployed above.
+        # Code.from_bucket references the known S3 path rather than a CDK hash.
         glue_job = glue_alpha.PySparkEtlJob(
             self,
             "HrEtlJob",
-            script=glue_alpha.Code.from_asset(
-                os.path.join(
-                    os.path.dirname(__file__), "..", "src", "glue", "etl_job.py"
-                )
+            script=glue_alpha.Code.from_bucket(
+                assets_bucket,
+                "scripts/etl_job.py",
             ),
             glue_version=glue_alpha.GlueVersion.V4_0,
             worker_type=glue_alpha.WorkerType.G_1X,
@@ -197,6 +213,9 @@ class InfrastructureStack(Stack):
             },
             role=glue_role,
         )
+
+        # Script must be in S3 before the job definition is created
+        glue_job.node.add_dependency(glue_script_deployment)
 
         # MaxConcurrentRuns=1 — prevents race conditions on the DynamoDB single-table
         cfn_glue_job = glue_job.node.default_child

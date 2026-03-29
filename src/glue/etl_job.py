@@ -231,6 +231,41 @@ dynamo_df = (
     .withColumn("SK", F.lit("PROFILE"))
 )
 
+# ── Step 7a: TitleCase rename — restore data contract for Lambda API ──────────
+# Internal processing uses lowercase column names (Glue Catalog normalisation).
+# DynamoDB attributes must be TitleCase so the Lambda handler can read them with
+# item.get("EmployeeID"), item.get("Salary"), etc.
+# "level" from the managers table maps to "ManagerLevel" to match the API contract.
+_DYNAMO_RENAME = {
+    "employeeid":         "EmployeeID",
+    "firstname":          "FirstName",
+    "lastname":           "LastName",
+    "email":              "Email",
+    "deptid":             "DeptID",
+    "department":         "Department",
+    "jobtitle":           "JobTitle",
+    "salary":             "Salary",
+    "hiredate":           "HireDate",
+    "city":               "City",
+    "state":              "State",
+    "employmentstatus":   "EmploymentStatus",
+    "managerid":          "ManagerID",
+    "manager":            "Manager",
+    "departmentname":     "DepartmentName",
+    "maxsalaryrange":     "MaxSalaryRange",
+    "minsalaryrange":     "MinSalaryRange",
+    "budget":             "Budget",
+    "managername":        "ManagerName",
+    "isactive":           "IsActive",
+    "level":              "ManagerLevel",
+    "highesttitlesalary": "HighestTitleSalary",
+    "comparatio":         "CompaRatio",
+    "requiresreview":     "RequiresReview",
+}
+for old, new in _DYNAMO_RENAME.items():
+    if old in dynamo_df.columns:
+        dynamo_df = dynamo_df.withColumnRenamed(old, new)
+
 # Explicit null guard: a null DateType casts to a null StringType;
 # name the column directly rather than relying on schema inspection.
 dynamo_df = dynamo_df.na.fill("", ["hiredate"])
