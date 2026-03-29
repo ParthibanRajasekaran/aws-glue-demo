@@ -131,11 +131,14 @@ class InfrastructureStack(Stack):
                 ],
             )
         )
-        # Parquet bucket: write-only, scoped to employees/ prefix
+        # Parquet bucket: write-only.
+        # employees*  covers both employees/ (data) and employees_$folder$
+        # (the Hadoop folder marker Spark writes at the bucket root when using
+        # overwrite mode — without this the job gets AccessDenied on DeleteObject).
         glue_role.add_to_policy(
             iam.PolicyStatement(
                 actions=["s3:PutObject", "s3:DeleteObject"],
-                resources=[f"{parquet_bucket.bucket_arn}/employees/*"],
+                resources=[f"{parquet_bucket.bucket_arn}/employees*"],
             )
         )
         # Assets bucket: read/write for Glue TempDir
