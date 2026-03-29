@@ -2,9 +2,11 @@
 HR ETL PySpark Job — Phase 4
 - Config fetched from SSM Parameter Store at runtime (Zero-Trust, no hardcoded names)
 - Reads raw CSVs via from_catalog() for native Glue Data Lineage + Job Bookmark support
+- Column names normalised to lowercase immediately after catalog read (Glue Catalog
+  lowercases all names; mixed-case references cause AnalysisException at runtime)
 - Broadcast joins eliminate shuffle on small lookup tables
-- Silver layer: null filtering, HireDate cast
-- DQ gate: IsComplete + ColumnValues + IsUnique on EmployeeID — fail-fast before any write
+- Silver layer: null filtering, hiredate cast
+- DQ gate: IsComplete + ColumnValues + IsUnique on employeeid — fail-fast before any write
 - Null safety: na.fill() guards on all string/double columns before DynamoDB PutItem
 - Hive-partitioned Parquet output (year / month / dept) for cost-efficient Athena queries
 """
@@ -54,97 +56,122 @@ DYNAMO_TABLE = _ssm["dynamodb-table-name"]
 # Schema is authoritative in CDK CfnTable definitions — no inferSchema scan needed.
 # transformation_ctx values are required for Job Bookmark tracking per source.
 
+def _lowercase_columns(df):
+    """Normalise all column names to lowercase.
+
+    The Glue Data Catalog stores column names in lowercase regardless of the
+    original CSV headers.  Any mixed-case reference after toDF() raises
+    AnalysisException: Column 'XYZ' does not exist.  Renaming once here means
+    the rest of the job can use consistent lowercase names.
+    """
+    return df.toDF(*[c.lower() for c in df.columns])
+
+
 employees_dyf = glueContext.create_dynamic_frame.from_catalog(
     database="hr_analytics",
     table_name="raw_employees",
     transformation_ctx="employees_source",
 )
-employees = employees_dyf.toDF()
+employees = _lowercase_columns(employees_dyf.toDF())
 
 departments_dyf = glueContext.create_dynamic_frame.from_catalog(
     database="hr_analytics",
     table_name="raw_departments",
     transformation_ctx="departments_source",
 )
-departments = departments_dyf.toDF()
+departments = _lowercase_columns(departments_dyf.toDF())
 
 managers_dyf = glueContext.create_dynamic_frame.from_catalog(
     database="hr_analytics",
     table_name="raw_managers",
     transformation_ctx="managers_source",
 )
-managers = managers_dyf.toDF()
+managers = _lowercase_columns(managers_dyf.toDF())
 
 # ── Step 2: Silver layer — null guard + explicit type casts ──────────────────
 
 def clean_data(df, id_col: str):
-    """Drop rows with null primary key; cast HireDate to DateType if present."""
+    """Drop rows with null primary key; cast hiredate to DateType if present.
+
+    Args:
+        df: Source DataFrame with lowercased column names.
+        id_col: Lowercase name of the primary-key column to null-check.
+
+    Raises:
+        ValueError: if id_col is not present, so the job fails with a clear
+            message rather than silently skipping the filter.
+    """
+    if id_col not in df.columns:
+        raise ValueError(
+            f"clean_data: column '{id_col}' not found. "
+            f"Available columns: {df.columns}"
+        )
     df = df.filter(F.col(id_col).isNotNull())
-    if "HireDate" in df.columns:
-        df = df.withColumn("HireDate", F.col("HireDate").cast(DateType()))
+    if "hiredate" in df.columns:
+        df = df.withColumn("hiredate", F.col("hiredate").cast(DateType()))
     return df
 
 
-employees = clean_data(employees, "EmployeeID")
+employees = clean_data(employees, "employeeid")
 
-# Type normalisation: join keys must be string; Salary/ranges to double for maths
+# Type normalisation: join keys must be string; salary/ranges to double for maths
 employees = (
     employees
-    .withColumn("DeptID",    F.col("DeptID").cast("string"))
-    .withColumn("ManagerID", F.col("ManagerID").cast("string"))
-    .withColumn("Salary",    F.col("Salary").cast("double"))
+    .withColumn("deptid",    F.col("deptid").cast("string"))
+    .withColumn("managerid", F.col("managerid").cast("string"))
+    .withColumn("salary",    F.col("salary").cast("double"))
 )
 
 departments = (
     departments
-    .withColumn("DeptID",         F.col("DeptID").cast("string"))
-    .withColumn("MaxSalaryRange", F.col("MaxSalaryRange").cast("double"))
-    .withColumn("MinSalaryRange", F.col("MinSalaryRange").cast("double"))
+    .withColumn("deptid",         F.col("deptid").cast("string"))
+    .withColumn("maxsalaryrange", F.col("maxsalaryrange").cast("double"))
+    .withColumn("minsalaryrange", F.col("minsalaryrange").cast("double"))
 )
 
-managers = managers.withColumn("ManagerID", F.col("ManagerID").cast("string"))
+managers = managers.withColumn("managerid", F.col("managerid").cast("string"))
 
 # ── Step 3: Broadcast joins — eliminates shuffle on small lookup tables ───────
 # departments: 6 rows, managers: 100 rows — both fit in executor memory
 enriched = employees.join(
     F.broadcast(departments.select(
-        "DeptID", "DepartmentName", "MaxSalaryRange", "MinSalaryRange", "Budget"
+        "deptid", "departmentname", "maxsalaryrange", "minsalaryrange", "budget"
     )),
-    on="DeptID",
+    on="deptid",
     how="left",
 )
 
 enriched = enriched.join(
-    F.broadcast(managers.select("ManagerID", "ManagerName", "IsActive", "Level")),
-    on="ManagerID",
+    F.broadcast(managers.select("managerid", "managername", "isactive", "level")),
+    on="managerid",
     how="left",
 )
 
 # ── Step 4: Window function — HighestTitleSalary ──────────────────────────────
-title_window = Window.partitionBy("JobTitle")
+title_window = Window.partitionBy("jobtitle")
 enriched = enriched.withColumn(
-    "HighestTitleSalary",
-    F.max(F.col("Salary")).over(title_window),
+    "highesttitlesalary",
+    F.max(F.col("salary")).over(title_window),
 )
 
 # ── Step 5: Business logic ────────────────────────────────────────────────────
 enriched = enriched.withColumn(
-    "CompaRatio",
-    F.round(F.col("Salary") / F.col("MaxSalaryRange"), 2),
+    "comparatio",
+    F.round(F.col("salary") / F.col("maxsalaryrange"), 2),
 )
 
-# IsActive is stored as the string "True" / "False" — never cast to boolean
+# isactive is stored as the string "True" / "False" — never cast to boolean
 enriched = enriched.withColumn(
-    "RequiresReview",
-    (F.col("CompaRatio") > F.lit(1.0)) | (F.col("IsActive") == F.lit("False")),
+    "requiresreview",
+    (F.col("comparatio") > F.lit(1.0)) | (F.col("isactive") == F.lit("False")),
 )
 
 # ── Step 6: Data Quality gate — fail-fast before writing to any sink ──────────
 dq_ruleset = """
     Rules = [
-        IsComplete "EmployeeID",
-        ColumnValues "Salary" > 0,
-        IsUnique "EmployeeID"
+        IsComplete "employeeid",
+        ColumnValues "salary" > 0,
+        IsUnique "employeeid"
     ]
 """
 
@@ -175,9 +202,9 @@ if failed_rules.count() > 0:
 # log them to CloudWatch (visible in /aws-glue/jobs/output) and exclude them
 # from the DynamoDB write so corrupt records never reach production.
 _bad_rows = enriched.filter(
-    F.col("EmployeeID").isNull()
-    | F.col("Salary").isNull()
-    | (F.col("Salary") <= 0)
+    F.col("employeeid").isNull()
+    | F.col("salary").isNull()
+    | (F.col("salary") <= 0)
 )
 _bad_count = _bad_rows.count()
 if _bad_count > 0:
@@ -185,13 +212,13 @@ if _bad_count > 0:
         f"[DQ-CircuitBreaker] RowOutcome=Error on {_bad_count} record(s). "
         "These rows are quarantined and will NOT be written to DynamoDB."
     )
-    _bad_rows.select("EmployeeID", "Salary", "JobTitle").show(truncate=False)
+    _bad_rows.select("employeeid", "salary", "jobtitle").show(truncate=False)
 
 # Only rows with a clean RowOutcome proceed to both sinks.
 enriched = enriched.filter(
-    F.col("EmployeeID").isNotNull()
-    & F.col("Salary").isNotNull()
-    & (F.col("Salary") > 0)
+    F.col("employeeid").isNotNull()
+    & F.col("salary").isNotNull()
+    & (F.col("salary") > 0)
 )
 
 # ── Step 7: DynamoDB sink via native Glue DynamicFrame connector ──────────────
@@ -199,14 +226,14 @@ enriched = enriched.filter(
 # PK/SK added as DynamoDB composite key attributes.
 dynamo_df = (
     enriched
-    .withColumn("HireDate", F.col("HireDate").cast("string"))
-    .withColumn("PK", F.concat(F.lit("EMP#"), F.col("EmployeeID").cast("string")))
+    .withColumn("hiredate", F.col("hiredate").cast("string"))
+    .withColumn("PK", F.concat(F.lit("EMP#"), F.col("employeeid").cast("string")))
     .withColumn("SK", F.lit("PROFILE"))
 )
 
 # Explicit null guard: a null DateType casts to a null StringType;
 # name the column directly rather than relying on schema inspection.
-dynamo_df = dynamo_df.na.fill("", ["HireDate"])
+dynamo_df = dynamo_df.na.fill("", ["hiredate"])
 
 # Null safety: DynamoDB rejects null attribute values; fill with safe defaults.
 # LEFT JOINs above can produce nulls for unmatched departments/managers rows.
@@ -232,9 +259,9 @@ glueContext.write_dynamic_frame.from_options(
 # HireDate is still DateType in `enriched`; year/month extracted before write.
 parquet_df = (
     enriched
-    .withColumn("year",  F.year(F.col("HireDate")))
-    .withColumn("month", F.month(F.col("HireDate")))
-    .withColumn("dept",  F.col("DeptID"))
+    .withColumn("year",  F.year(F.col("hiredate")))
+    .withColumn("month", F.month(F.col("hiredate")))
+    .withColumn("dept",  F.col("deptid"))
 )
 
 (
