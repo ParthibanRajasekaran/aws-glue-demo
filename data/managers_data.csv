@@ -1,0 +1,101 @@
+ManagerID,ManagerName,Department,ManagerEmail,IsActive,Level
+2000,Jennifer Jones,Marketing,jennifer.jones@company.com,True,Director
+2001,James Martinez,HR,james.martinez@company.com,True,Director
+2002,Jennifer Martinez,Sales,jennifer.martinez@company.com,True,Director
+2003,David Miller,Sales,david.miller@company.com,False,Director
+2004,Michael Williams,Customer Support,michael.williams@company.com,False,Senior Manager
+2005,John Garcia,Marketing,john.garcia@company.com,True,Senior Manager
+2006,Elizabeth Rodriguez,Marketing,elizabeth.rodriguez@company.com,False,Director
+2007,Elizabeth Smith,Engineering,elizabeth.smith@company.com,True,Senior Manager
+2008,James Rodriguez,Finance,james.rodriguez@company.com,True,Senior Manager
+2009,Elizabeth Williams,Finance,elizabeth.williams@company.com,False,Director
+2010,David Davis,Engineering,david.davis@company.com,True,Senior Manager
+2011,Linda Brown,Finance,linda.brown@company.com,True,Director
+2012,Elizabeth Brown,Finance,elizabeth.brown@company.com,True,Director
+2013,David Williams,Engineering,david.williams@company.com,True,VP
+2014,Mary Rodriguez,HR,mary.rodriguez@company.com,True,Director
+2015,John Miller,Marketing,john.miller@company.com,True,Senior Manager
+2016,Elizabeth Johnson,Sales,elizabeth.johnson@company.com,True,Senior Manager
+2017,John Rodriguez,Customer Support,john.rodriguez@company.com,True,Director
+2018,Robert Smith,HR,robert.smith@company.com,True,Director
+2019,David Johnson,Customer Support,david.johnson@company.com,True,Senior Manager
+2020,James Garcia,Customer Support,james.garcia@company.com,True,Director
+2021,Linda Jones,Customer Support,linda.jones@company.com,True,Senior Manager
+2022,Linda Williams,Sales,linda.williams@company.com,True,VP
+2023,Michael Garcia,Customer Support,michael.garcia@company.com,True,VP
+2024,Robert Davis,Engineering,robert.davis@company.com,True,Senior Manager
+2025,Robert Garcia,Finance,robert.garcia@company.com,True,Senior Manager
+2026,Patricia Brown,Customer Support,patricia.brown@company.com,True,Director
+2027,John Jones,Engineering,john.jones@company.com,True,Director
+2028,Jennifer Johnson,Sales,jennifer.johnson@company.com,False,Senior Manager
+2029,James Williams,Customer Support,james.williams@company.com,False,Director
+2030,Patricia Jones,HR,patricia.jones@company.com,True,Director
+2031,James Jones,Finance,james.jones@company.com,False,Senior Manager
+2032,Elizabeth Miller,Finance,elizabeth.miller@company.com,True,Senior Manager
+2033,David Garcia,Finance,david.garcia@company.com,True,Director
+2034,Mary Johnson,Sales,mary.johnson@company.com,False,Senior Manager
+2035,Jennifer Rodriguez,Engineering,jennifer.rodriguez@company.com,False,Senior Manager
+2036,James Miller,HR,james.miller@company.com,True,Senior Manager
+2037,Robert Williams,Finance,robert.williams@company.com,True,Director
+2038,Michael Miller,Finance,michael.miller@company.com,False,Senior Manager
+2039,Michael Smith,Marketing,michael.smith@company.com,False,Senior Manager
+2040,James Davis,HR,james.davis@company.com,False,VP
+2041,Elizabeth Davis,Engineering,elizabeth.davis@company.com,True,Senior Manager
+2042,David Smith,Finance,david.smith@company.com,True,Director
+2043,John Martinez,Finance,john.martinez@company.com,True,VP
+2044,Robert Johnson,Finance,robert.johnson@company.com,True,VP
+2045,Elizabeth Jones,HR,elizabeth.jones@company.com,True,Director
+2046,Jennifer Smith,Finance,jennifer.smith@company.com,True,Director
+2047,Patricia Garcia,Sales,patricia.garcia@company.com,True,Senior Manager
+2048,Jennifer Williams,Engineering,jennifer.williams@company.com,False,Director
+2049,Jennifer Miller,Sales,jennifer.miller@company.com,True,VP
+2050,Patricia Davis,Sales,patricia.davis@company.com,False,Senior Manager
+2051,Patricia Martinez,Customer Support,patricia.martinez@company.com,True,VP
+2052,Michael Davis,Finance,michael.davis@company.com,True,Senior Manager
+2053,Mary Martinez,Engineering,mary.martinez@company.com,True,VP
+2054,Robert Martinez,Marketing,robert.martinez@company.com,True,Senior Manager
+2055,David Martinez,Finance,david.martinez@company.com,True,Senior Manager
+2056,James Smith,Engineering,james.smith@company.com,True,VP
+2057,Linda Rodriguez,Sales,linda.rodriguez@company.com,True,Senior Manager
+2058,Jennifer Garcia,Finance,jennifer.garcia@company.com,True,VP
+2059,Mary Smith,Marketing,mary.smith@company.com,False,Director
+2060,Linda Miller,Marketing,linda.miller@company.com,False,Senior Manager
+2061,John Johnson,Customer Support,john.johnson@company.com,True,Senior Manager
+2062,James Johnson,Finance,james.johnson@company.com,True,VP
+2063,Linda Martinez,Finance,linda.martinez@company.com,False,Senior Manager
+2064,Michael Jones,Sales,michael.jones@company.com,True,Senior Manager
+2065,John Smith,Customer Support,john.smith@company.com,True,VP
+2066,David Jones,Sales,david.jones@company.com,True,Director
+2067,Linda Davis,Marketing,linda.davis@company.com,True,VP
+2068,Michael Rodriguez,HR,michael.rodriguez@company.com,True,Director
+2069,James Brown,Finance,james.brown@company.com,True,VP
+2070,Linda Garcia,Customer Support,linda.garcia@company.com,True,Director
+2071,Jennifer Davis,Marketing,jennifer.davis@company.com,True,VP
+2072,Linda Johnson,Engineering,linda.johnson@company.com,True,Director
+2073,Michael Martinez,HR,michael.martinez@company.com,True,VP
+2074,Elizabeth Garcia,HR,elizabeth.garcia@company.com,True,Senior Manager
+2075,John Davis,HR,john.davis@company.com,True,VP
+2076,Mary Miller,Customer Support,mary.miller@company.com,False,Director
+2077,Mary Davis,Engineering,mary.davis@company.com,True,VP
+2078,Patricia Miller,Marketing,patricia.miller@company.com,True,Director
+2079,Linda Smith,HR,linda.smith@company.com,True,VP
+2080,Robert Miller,Customer Support,robert.miller@company.com,True,VP
+2081,Michael Brown,HR,michael.brown@company.com,True,Director
+2082,Mary Jones,Engineering,mary.jones@company.com,True,Senior Manager
+2083,Elizabeth Martinez,Engineering,elizabeth.martinez@company.com,True,Senior Manager
+2084,Mary Williams,Customer Support,mary.williams@company.com,True,Senior Manager
+2085,Michael Johnson,Engineering,michael.johnson@company.com,True,Senior Manager
+2086,Robert Jones,Finance,robert.jones@company.com,True,Director
+2087,Patricia Williams,Sales,patricia.williams@company.com,True,Senior Manager
+2088,Robert Rodriguez,Customer Support,robert.rodriguez@company.com,True,Director
+2089,David Rodriguez,Finance,david.rodriguez@company.com,True,Senior Manager
+2090,John Brown,Marketing,john.brown@company.com,True,Senior Manager
+2091,Patricia Johnson,Customer Support,patricia.johnson@company.com,True,Director
+2092,David Brown,Sales,david.brown@company.com,True,VP
+2093,Jennifer Brown,Engineering,jennifer.brown@company.com,True,VP
+2094,John Williams,Customer Support,john.williams@company.com,False,Director
+2095,Mary Garcia,Customer Support,mary.garcia@company.com,True,VP
+2096,Robert Brown,Finance,robert.brown@company.com,True,Senior Manager
+2097,Patricia Smith,Engineering,patricia.smith@company.com,True,Director
+2098,Patricia Rodriguez,Customer Support,patricia.rodriguez@company.com,False,Senior Manager
+2099,Mary Brown,Customer Support,mary.brown@company.com,False,Director

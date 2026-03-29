@@ -1,0 +1,7 @@
+DeptID,DepartmentName,Budget,MinSalaryRange,MaxSalaryRange,IsRemoteFriendly
+500,Sales,20710106,45018,153821,True
+501,Engineering,15383884,45828,151006,False
+502,Marketing,19889377,45270,153885,False
+503,HR,19173879,45450,153501,False
+504,Finance,21191282,45284,152913,True
+505,Customer Support,18070516,45324,153244,True

@@ -1,0 +1,76 @@
+# ── Credentials & Secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+newUser_accessKeys*.csv
+newUser_credentials*.csv
+*_accessKeys*.csv
+*_credentials*.csv
+
+# ── CDK & CloudFormation ──────────────────────────────────────────────────────
+cdk.out/
+outputs.json
+cdk.context.json
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+.installed.cfg
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.virtualenv/
+
+# ── Testing & Coverage ────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+nosetests.xml
+pytest.xml
+test-results/
+
+# ── IDE & Editor ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Terraform (if added later) ────────────────────────────────────────────────
+*.tfstate
+*.tfstate.*
+.terraform/
