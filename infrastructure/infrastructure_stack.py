@@ -9,6 +9,7 @@ from aws_cdk import (
     Stack,
     aws_athena as athena,
     aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatch_actions,
     aws_dynamodb as dynamodb,
     aws_glue as glue,
     aws_iam as iam,
@@ -16,6 +17,7 @@ from aws_cdk import (
     aws_lambda as lambda_,
     aws_logs as logs,
     aws_s3 as s3,
+    aws_sns as sns,
     aws_ssm as ssm,
 )
 import aws_cdk.aws_glue_alpha as glue_alpha
@@ -508,6 +510,40 @@ class InfrastructureStack(Stack):
             ),
         )
 
+        # ── Alerting — SNS topic + CloudWatch Alarm ──────────────────────────────
+        # The alarm fires within 1 minute of the first failed Glue task so that
+        # on-call is paged before a user notices missing data.
+        alerts_topic = sns.Topic(
+            self,
+            "HrPipelineAlerts",
+            topic_name="hr-pipeline-alerts",
+            display_name="HR Pipeline Alerts",
+        )
+
+        glue_failure_alarm = cloudwatch.Alarm(
+            self,
+            "GlueJobFailureAlarm",
+            alarm_name="hr-pipeline-glue-job-failed",
+            alarm_description=(
+                "Glue HR ETL job has at least one failed task. "
+                "Check /aws-glue/jobs/error log group for the root cause."
+            ),
+            metric=cloudwatch.Metric(
+                namespace="Glue",
+                metric_name="glue.driver.aggregate.numFailedTasks",
+                dimensions_map={"JobName": glue_job.job_name},
+                statistic="Sum",
+                period=Duration.minutes(1),
+            ),
+            threshold=0,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluation_periods=1,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        glue_failure_alarm.add_alarm_action(
+            cloudwatch_actions.SnsAction(alerts_topic)
+        )
+
         # ── Stack Outputs ─────────────────────────────────────────────────────────
         cdk.CfnOutput(self, "RawBucketName",     value=raw_bucket.bucket_name)
         cdk.CfnOutput(self, "ParquetBucketName", value=parquet_bucket.bucket_name)
@@ -516,3 +552,4 @@ class InfrastructureStack(Stack):
         cdk.CfnOutput(self, "LambdaFunctionName",value=lambda_fn.function_name)
         cdk.CfnOutput(self, "DynamoTableName",   value=table.table_name)
         cdk.CfnOutput(self, "KmsKeyArn",         value=encryption_key.key_arn)
+        cdk.CfnOutput(self, "AlertsTopicArn",   value=alerts_topic.topic_arn)
