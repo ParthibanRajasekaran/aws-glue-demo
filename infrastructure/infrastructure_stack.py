@@ -450,12 +450,18 @@ class InfrastructureStack(Stack):
                     os.path.dirname(__file__), "..", "src", "lambda"
                 )
             ),
-            environment={
-                "DYNAMO_TABLE": table.table_name,
-            },
             timeout=Duration.seconds(30),
         )
         table.grant_read_data(lambda_fn)
+        lambda_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:aws:ssm:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}"
+                    f":parameter/hr-pipeline/dynamodb-table-name"
+                ],
+            )
+        )
 
         # ── CloudWatch Dashboard ──────────────────────────────────────────────────
         dashboard = cloudwatch.Dashboard(
