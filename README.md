@@ -97,14 +97,14 @@ Cost was a first-class design constraint. Every decision has a price tag.
 
 ### Encryption at rest and in transit
 
-All data stores are encrypted with a **Customer-Managed KMS Key** (annual rotation enabled):
+All S3 buckets are encrypted with a **Customer-Managed KMS Key** (annual rotation enabled). DynamoDB uses AWS-managed KMS:
 
 | Resource | Encryption |
 |---|---|
 | S3 raw bucket | SSE-KMS (pipeline key) |
 | S3 Parquet bucket | SSE-KMS (pipeline key) |
 | S3 assets bucket (Glue TempDir) | SSE-KMS (pipeline key) |
-| DynamoDB single-table | AWS-managed KMS via CDK `TableEncryption.AWS_MANAGED` |
+| DynamoDB single-table | AWS-managed KMS (`TableEncryption.AWS_MANAGED`) |
 
 ### Zero-Trust configuration discovery
 
@@ -126,10 +126,12 @@ No `Resource: "*"` exists in any custom IAM statement.
 | Principal | Actions | Scoped to |
 |---|---|---|
 | Glue job role | `s3:GetObject`, `s3:ListBucket` | `raw_bucket/raw/*` prefix only |
-| Glue job role | `s3:PutObject`, `s3:DeleteObject` | `parquet_bucket/employees/*` only |
-| Glue job role | `dynamodb:PutItem`, `BatchWriteItem` | `aws-glue-demo-single-table` only |
+| Glue job role | `s3:PutObject`, `s3:DeleteObject` | `parquet_bucket/employees*` prefix |
+| Glue job role | `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` | `assets_bucket/*` (TempDir + script) |
+| Glue job role | `dynamodb:DescribeTable`, `dynamodb:PutItem`, `dynamodb:BatchWriteItem` | `aws-glue-demo-single-table` only |
 | Glue job role | `kms:GenerateDataKey*`, `kms:Decrypt` | Specific pipeline KMS key ARN |
 | Glue job role | `ssm:GetParameter`, `ssm:GetParameters` | `/hr-pipeline/*` prefix |
+| Glue job role | `glue:GetTable`, `glue:BatchCreatePartition`, `glue:UpdateTable` | `hr_analytics` DB + `employees` table only |
 | Lambda role | `dynamodb:GetItem` | `aws-glue-demo-single-table` only |
 | Lambda role | `ssm:GetParameter` | `/hr-pipeline/dynamodb-table-name` only |
 
@@ -143,9 +145,9 @@ The pipeline enforces a two-tier quality strategy:
 `EvaluateDataQuality` checks three rules before any write. A single failure aborts the job - no partial data reaches DynamoDB or Parquet.
 
 ```
-IsComplete "EmployeeID"
-ColumnValues "Salary" > 0
-IsUnique "EmployeeID"
+IsComplete "employeeid"
+ColumnValues "salary" > 0
+IsUnique "employeeid"
 ```
 
 **Tier 2 - Row-level circuit breaker:**
@@ -270,9 +272,12 @@ FROM hr_analytics.employees
 GROUP BY departmentname
 ORDER BY avg_salary DESC;
 
--- Reconciliation: raw row count vs enriched row count
-SELECT data_source, row_count
-FROM hr_analytics.v_etl_reconciliation;
+-- Top earners per department
+SELECT departmentname, firstname, lastname, salary, comparatio
+FROM hr_analytics.employees
+WHERE year = 2024
+ORDER BY salary DESC
+LIMIT 20;
 ```
 
 ---
@@ -308,8 +313,11 @@ aws-glue-demo/
 │   ├── departments_data.csv
 │   └── managers_data.csv
 ├── docs/
-│   └── ADR/
-│       └── 001-configuration-management.md
+│   ├── ADR/
+│   │   └── 001-configuration-management.md
+│   └── images/
+│       ├── workflow.png
+│       └── data-access.png
 ├── infrastructure/
 │   ├── app.py
 │   ├── infrastructure_stack.py
