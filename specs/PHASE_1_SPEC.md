@@ -1,4 +1,4 @@
-# Phase 1 Specification — Baseline Pipeline Setup
+# Phase 1 Specification: Baseline Pipeline Setup
 
 This document defines the Phase 1 contract for the employee Glue setup pipeline.
 Phase 1 provisions all AWS infrastructure required for the ETL to run and validates
@@ -37,7 +37,7 @@ ready to accept a Phase 2 PySpark ETL job.
 - `create_glue_role`: creates `AWSGlueRole-EmployeeETL` with a Glue trust policy; idempotent.
 - `attach_glue_policies`: attaches only `AWSGlueServiceRole` (no broad DynamoDB access).
 - `put_s3_inline_policy`: scoped inline policy granting `GetObject`/`PutObject` on
-  bucket objects and `ListBucket` on the bucket — nothing wider.
+  bucket objects and `ListBucket` on the bucket; nothing wider.
 - `get_role_arn`: resolves the role ARN for passing to the crawler; raises `RuntimeError`
   if the role does not exist.
 
@@ -47,14 +47,14 @@ ready to accept a Phase 2 PySpark ETL job.
   - **Reconciliation on existing crawler**: calls `update_crawler` to sync role, targets,
     schema-change policy, and recrawl policy to the desired state.
   - **Schedule guard**: raises `CrawlerConfigurationError` if the existing crawler has a
-    recurring schedule — prevents accidental automated runs.
+    recurring schedule (prevents accidental automated runs).
 - `run_crawler`: starts the crawler and polls until `READY` or timeout (5 minutes).
   - **Already RUNNING**: skips `start_crawler` and joins the in-flight run.
   - **STOPPING**: waits for `READY` before issuing `start_crawler` to avoid API errors.
   - **FAILED**: raises `CrawlerFailedError` with the error message from `LastCrawl`.
 
 ### `src/dynamodb_setup.py`
-- `assert_pay_per_request`: pre-flight guard — raises `BillingModeError` if an existing
+- `assert_pay_per_request`: pre-flight guard; raises `BillingModeError` if an existing
   `Employees` table uses `PROVISIONED` billing. Called before `create_table` to prevent
   silent capacity charges on re-runs.
 - `create_table`: provisions `Employees` with `PAY_PER_REQUEST` billing and `EmployeeID`
@@ -62,11 +62,11 @@ ready to accept a Phase 2 PySpark ETL job.
 - `wait_for_table_active`: polls until the table reaches `ACTIVE` status.
 
 ### `src/pipeline_runner.py`
-- Orchestrates all setup modules in dependency order (Steps 1–16).
+- Orchestrates all setup modules in dependency order (Steps 1-16).
 - Uses `_run_step` to wrap every function call with consistent start/fail/complete logging.
 - Upload verification is wrapped in `_assert_upload` so failures are surfaced as logged
   step failures, not silent boolean returns.
-- Prints a structured summary on success using `config` fields and runtime variables —
+- Prints a structured summary on success using `config` fields and runtime variables;
   no hard-coded resource names.
 
 ---
@@ -95,10 +95,10 @@ configured environment:
 | S3 encryption | Default SSE-S3 (`AES256`) enforced on every run |
 | S3 public access | All four public-access-block flags set to `True` |
 | S3 versioning | Enabled for audit trail and recovery |
-| IAM managed policies | `AWSGlueServiceRole` only — no `AmazonDynamoDBFullAccess` |
+| IAM managed policies | `AWSGlueServiceRole` only (no `AmazonDynamoDBFullAccess`) |
 | IAM inline policy | Scoped to the pipeline bucket; no wildcard resources |
 | DynamoDB billing | `PAY_PER_REQUEST` enforced; `PROVISIONED` rejected before write |
-| Crawler schedule | Rejected at runtime — prevents unintended automated crawls |
+| Crawler schedule | Rejected at runtime; prevents unintended automated crawls |
 
 ---
 
@@ -144,22 +144,22 @@ pytest tests/test_glue_setup.py -v -m integration
 ## Pipeline Execution Order
 
 ```
-1.  Load Config            — STS identity + resource name resolution
-2.  Create S3 Bucket       — idempotent bucket provisioning
-3.  Configure Bucket       — versioning + public-access-block + SSE-S3
-4.  Upload CSV             — raw/employees/employee_data.csv → S3
-5.  Verify Upload          — HeadObject confirmation
-6.  Create Glue IAM Role   — trust policy + service role
-7.  Attach Managed Policy  — AWSGlueServiceRole only
-8.  Put S3 Inline Policy   — scoped bucket access
-9.  Create Glue Database   — employee_db
+1.  Load Config            - STS identity + resource name resolution
+2.  Create S3 Bucket       - idempotent bucket provisioning
+3.  Configure Bucket       - versioning + public-access-block + SSE-S3
+4.  Upload CSV             - raw/employees/employee_data.csv -> S3
+5.  Verify Upload          - HeadObject confirmation
+6.  Create Glue IAM Role   - trust policy + service role
+7.  Attach Managed Policy  - AWSGlueServiceRole only
+8.  Put S3 Inline Policy   - scoped bucket access
+9.  Create Glue Database   - employee_db
     [15 s IAM propagation delay]
-10. Get Role ARN           — resolved for crawler registration
+10. Get Role ARN           - resolved for crawler registration
 11. Create/Reconcile Crawler
-12. Run Crawler            — blocking poll until READY
-13. Get Catalog Table      — validate employee_db.employees exists
-14. Validate DynamoDB Billing Mode — assert PAY_PER_REQUEST
-15. Create DynamoDB Table  — Employees (idempotent)
+12. Run Crawler            - blocking poll until READY
+13. Get Catalog Table      - validate employee_db.employees exists
+14. Validate DynamoDB Billing Mode - assert PAY_PER_REQUEST
+15. Create DynamoDB Table  - Employees (idempotent)
 16. Wait for Table ACTIVE
-    → Summary printed
+    -> Summary printed
 ```

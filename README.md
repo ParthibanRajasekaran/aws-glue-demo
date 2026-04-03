@@ -106,12 +106,12 @@ flowchart TD
 
 | Step | Operation | Output columns added |
 |---|---|---|
-| (1) lowercase | Normalise all headers | — |
+| (1) lowercase | Normalise all headers | - |
 | (2) JOIN departments | Left-outer on `deptid` | `departmentname · maxsalaryrange · minsalaryrange · budget` |
 | (3) JOIN managers | Left-outer on `managerid` | `managername · isactive · level` |
 | (4) Window | MAX salary OVER jobtitle | `highesttitlesalary` |
 | (5) Derived | Arithmetic + boolean | `comparatio · requiresreview` |
-| (6) DQ gate | Circuit breaker | — (quarantine bad rows) |
+| (6) DQ gate | Circuit breaker | - (quarantine bad rows) |
 | (7) TitleCase | API contract remap | 24 final columns |
 
 ---
