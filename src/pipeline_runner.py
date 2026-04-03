@@ -52,11 +52,13 @@ def run() -> None:
     )
 
     # ── Step 5: Verify Upload ─────────────────────────────────────────────────
-    verified = _run_step("Verify Upload", s3_setup.verify_upload, config, s3_key)
-    if not verified:
-        raise UploadVerificationError(
-            f"Upload verification failed for s3://{config.S3_BUCKET_NAME}/{s3_key}"
-        )
+    def _assert_upload(cfg, key):
+        if not s3_setup.verify_upload(cfg, key):
+            raise UploadVerificationError(
+                f"Upload verification failed for s3://{cfg.S3_BUCKET_NAME}/{key}"
+            )
+
+    _run_step("Verify Upload", _assert_upload, config, s3_key)
 
     # ── Step 6: Create Glue IAM Role ──────────────────────────────────────────
     role_arn = _run_step("Create Glue IAM Role", iam_setup.create_glue_role, config)
@@ -125,16 +127,15 @@ def run() -> None:
     )
 
     # ── Step 16: Summary Report ───────────────────────────────────────────────
-    account_id = config.aws_account_id
     print(f"""
 === Phase 1 Setup Complete ===
 
-S3 Bucket     : s3://employee-data-glue-{account_id}
-File Uploaded : s3://employee-data-glue-{account_id}/raw/employees/employee_data.csv
-IAM Role ARN  : arn:aws:iam::{account_id}:role/AWSGlueRole-EmployeeETL
-Glue Database : employee_db
-Catalog Table : employee_db.{config.GLUE_TABLE_NAME} ({col_count} columns catalogued)
-DynamoDB Table: Employees (PAY_PER_REQUEST, ACTIVE)
+S3 Bucket     : s3://{config.S3_BUCKET_NAME}
+File Uploaded : {s3_uri}
+IAM Role ARN  : {resolved_role_arn}
+Glue Database : {config.GLUE_DATABASE_NAME}
+Catalog Table : {config.GLUE_DATABASE_NAME}.{config.GLUE_TABLE_NAME} ({col_count} columns catalogued)
+DynamoDB Table: {config.DYNAMODB_TABLE_NAME} (PAY_PER_REQUEST, ACTIVE)
 
 Ready for Phase 2: PySpark ETL job implementation.
 """)

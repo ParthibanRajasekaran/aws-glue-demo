@@ -118,6 +118,23 @@ def test_configure_bucket_security_public_access_blocked():
     assert block_cfg["RestrictPublicBuckets"] is True
 
 
+@pytest.mark.unit
+@mock_aws
+def test_configure_bucket_security_encryption():
+    """configure_bucket_security should enforce SSE-S3 default encryption."""
+    import src.s3_setup as mod
+    config = _make_config()
+
+    with patch.object(mod, "_session", side_effect=_moto_session):
+        mod.create_bucket(config)
+        mod.configure_bucket_security(config)
+
+    s3 = boto3.client("s3", region_name="us-east-1")
+    resp = s3.get_bucket_encryption(Bucket=config.S3_BUCKET_NAME)
+    rules = resp["ServerSideEncryptionConfiguration"]["Rules"]
+    assert rules[0]["ApplyServerSideEncryptionByDefault"]["SSEAlgorithm"] == "AES256"
+
+
 # ---------------------------------------------------------------------------
 # upload_file
 # ---------------------------------------------------------------------------

@@ -115,11 +115,35 @@ def run_crawler(config: Config) -> None:
     # Check current state before starting
     info = glue.get_crawler(Name=crawler_name)["Crawler"]
     state = info.get("State", "READY")
+
     if state == "RUNNING":
         logger.warning(
             "Crawler '%s' is already RUNNING – waiting for completion.", crawler_name
         )
     else:
+        if state == "STOPPING":
+            logger.warning(
+                "Crawler '%s' is STOPPING – waiting until READY before starting.", crawler_name
+            )
+            for poll in range(1, _MAX_POLLS + 1):
+                time.sleep(_POLL_INTERVAL_SECONDS)
+                info = glue.get_crawler(Name=crawler_name)["Crawler"]
+                state = info.get("State", "UNKNOWN")
+                logger.info(
+                    "Crawler '%s' – pre-start poll %d/%d – state: %s",
+                    crawler_name, poll, _MAX_POLLS, state,
+                )
+                if state == "READY":
+                    break
+                if state != "STOPPING":
+                    raise CrawlerFailedError(
+                        f"Crawler '{crawler_name}' entered unexpected state before start: {state}"
+                    )
+            else:
+                raise CrawlerTimeoutError(
+                    f"Crawler '{crawler_name}' did not become READY within "
+                    f"{_MAX_POLLS * _POLL_INTERVAL_SECONDS} seconds."
+                )
         glue.start_crawler(Name=crawler_name)
         logger.info("Started Glue crawler: %s", crawler_name)
 
