@@ -27,6 +27,24 @@ class BillingModeError(Exception):
     """Raised when an existing table uses PROVISIONED billing instead of PAY_PER_REQUEST."""
 
 
+def assert_pay_per_request(config: Config) -> None:
+    """Pre-flight guard that fails fast if table billing mode is PROVISIONED."""
+    dynamodb = _session(config).client("dynamodb")
+    table_name = config.DYNAMODB_TABLE_NAME
+    try:
+        desc = dynamodb.describe_table(TableName=table_name)["Table"]
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] == "ResourceNotFoundException":
+            return
+        raise
+
+    billing = desc.get("BillingModeSummary", {}).get("BillingMode", "PROVISIONED")
+    if billing != "PAY_PER_REQUEST":
+        raise BillingModeError(
+            f"Table '{table_name}' uses {billing}. This pipeline requires PAY_PER_REQUEST."
+        )
+
+
 def _session(config: Config) -> boto3.Session:
     return boto3.Session(profile_name=config.aws_profile, region_name=config.aws_region)
 

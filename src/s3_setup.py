@@ -53,7 +53,7 @@ def create_bucket(config: Config) -> str:
 
 
 def configure_bucket_security(config: Config) -> None:
-    """Enable versioning and block all public access on the bucket. Idempotent."""
+    """Enable baseline bucket security controls. Idempotent."""
     s3 = _session(config).client("s3")
     bucket = config.S3_BUCKET_NAME
 
@@ -75,6 +75,20 @@ def configure_bucket_security(config: Config) -> None:
         },
     )
     logger.info("Blocked all public access on bucket: %s", bucket)
+
+    # Enforce SSE-S3 encryption for all new objects
+    s3.put_bucket_encryption(
+        Bucket=bucket,
+        ServerSideEncryptionConfiguration={
+            "Rules": [
+                {
+                    "ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"},
+                    "BucketKeyEnabled": False,
+                }
+            ]
+        },
+    )
+    logger.info("Enabled default SSE-S3 encryption on bucket: %s", bucket)
 
 
 def upload_file(config: Config, local_path: str, s3_key: str) -> str:

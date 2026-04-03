@@ -42,6 +42,7 @@ from src.dynamodb_setup import (
     create_table,
     wait_for_table_active,
     get_table_status,
+    assert_pay_per_request,
 )
 
 
@@ -146,3 +147,21 @@ def test_wait_for_table_active():
         mod.create_table(config)
         # moto sets the table to ACTIVE immediately
         mod.wait_for_table_active(config, timeout_seconds=30)
+
+
+@pytest.mark.unit
+def test_assert_pay_per_request_raises_for_provisioned():
+    """Pre-flight guard should raise if table billing mode is PROVISIONED."""
+    import src.dynamodb_setup as mod
+    config = _make_config()
+
+    mock_client = MagicMock()
+    mock_client.describe_table.return_value = {
+        "Table": {"BillingModeSummary": {"BillingMode": "PROVISIONED"}}
+    }
+    mock_session = MagicMock()
+    mock_session.client.return_value = mock_client
+
+    with patch.object(mod, "_session", return_value=mock_session):
+        with pytest.raises(BillingModeError):
+            mod.assert_pay_per_request(config)

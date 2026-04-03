@@ -22,7 +22,6 @@ _TRUST_POLICY = json.dumps({
 
 _MANAGED_POLICIES = [
     "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole",
-    "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess",
 ]
 
 
@@ -56,7 +55,7 @@ def create_glue_role(config: Config) -> str:
 
 
 def attach_glue_policies(config: Config, role_name: str) -> None:
-    """Attach AWSGlueServiceRole and AmazonDynamoDBFullAccess managed policies. Idempotent."""
+    """Attach required managed policies for Glue service role. Idempotent."""
     iam = _session(config).client("iam")
 
     for policy_arn in _MANAGED_POLICIES:

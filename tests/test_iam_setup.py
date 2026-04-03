@@ -104,8 +104,9 @@ def test_attach_glue_policies_attached():
     with patch.object(mod, "_session", return_value=mock_session):
         mod.attach_glue_policies(config, config.GLUE_IAM_ROLE_NAME)
 
-    assert "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole" in attached_calls
-    assert "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess" in attached_calls
+    assert attached_calls == [
+        "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+    ]
 
 
 # ---------------------------------------------------------------------------

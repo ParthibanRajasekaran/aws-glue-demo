@@ -73,7 +73,20 @@ def create_crawler(config: Config, role_arn: str) -> None:
         )
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "AlreadyExistsException":
-            logger.info("Glue crawler already exists: %s", crawler_name)
+            logger.info("Glue crawler already exists: %s — reconciling config", crawler_name)
+            glue.update_crawler(
+                Name=crawler_name,
+                Role=role_arn,
+                DatabaseName=config.GLUE_DATABASE_NAME,
+                Targets={"S3Targets": [{"Path": target_path}]},
+                SchemaChangePolicy={
+                    "UpdateBehavior": "LOG",
+                    "DeleteBehavior": "LOG",
+                },
+                RecrawlPolicy={"RecrawlBehavior": "CRAWL_EVERYTHING"},
+                Schedule="",
+            )
+            logger.info("Reconciled crawler '%s' with desired config", crawler_name)
         else:
             raise
 
@@ -95,12 +108,11 @@ def run_crawler(config: Config) -> None:
     state = info.get("State", "READY")
     if state == "RUNNING":
         logger.warning(
-            "Crawler '%s' is already RUNNING – skipping start.", crawler_name
+            "Crawler '%s' is already RUNNING – waiting for completion.", crawler_name
         )
-        return
-
-    glue.start_crawler(Name=crawler_name)
-    logger.info("Started Glue crawler: %s", crawler_name)
+    else:
+        glue.start_crawler(Name=crawler_name)
+        logger.info("Started Glue crawler: %s", crawler_name)
 
     for poll in range(1, _MAX_POLLS + 1):
         time.sleep(_POLL_INTERVAL_SECONDS)
