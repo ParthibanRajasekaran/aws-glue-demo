@@ -1,13 +1,14 @@
 """Integration tests for src/glue_setup.py – require live AWS credentials."""
-import pytest
-from src.config import Config
-from src import glue_setup, iam_setup, s3_setup
-from src.glue_setup import TableNotFoundError
 
+import pytest
+
+from src import glue_setup, iam_setup
+from src.config import Config
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(scope="module")
 def live_config():
@@ -19,12 +20,14 @@ def live_config():
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.integration
 def test_database_created(live_config):
     """create_database should create (or confirm existing) the Glue database."""
     glue_setup.create_database(live_config)
 
     import boto3
+
     glue = boto3.Session(
         profile_name=live_config.aws_profile,
         region_name=live_config.aws_region,
@@ -41,6 +44,7 @@ def test_crawler_created(live_config):
     glue_setup.create_crawler(live_config, role_arn)
 
     import boto3
+
     glue = boto3.Session(
         profile_name=live_config.aws_profile,
         region_name=live_config.aws_region,
@@ -56,6 +60,7 @@ def test_crawler_reaches_ready(live_config):
     glue_setup.run_crawler(live_config)
 
     import boto3
+
     glue = boto3.Session(
         profile_name=live_config.aws_profile,
         region_name=live_config.aws_region,
@@ -78,6 +83,6 @@ def test_catalog_table_column_count(live_config):
     """The catalogued table should have at least 10 columns (CSV has 12)."""
     table = glue_setup.get_catalog_table(live_config, live_config.GLUE_TABLE_NAME)
     columns = table.get("StorageDescriptor", {}).get("Columns", [])
-    assert len(columns) >= 10, (
-        f"Expected at least 10 columns, got {len(columns)}: {[c['Name'] for c in columns]}"
-    )
+    assert (
+        len(columns) >= 10
+    ), f"Expected at least 10 columns, got {len(columns)}: {[c['Name'] for c in columns]}"

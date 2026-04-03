@@ -3,25 +3,25 @@ import json
 import os
 
 import aws_cdk as cdk
+import aws_cdk.aws_glue_alpha as glue_alpha
 from aws_cdk import (
     Duration,
     RemovalPolicy,
     Stack,
-    aws_athena as athena,
-    aws_cloudwatch as cloudwatch,
-    aws_cloudwatch_actions as cloudwatch_actions,
-    aws_dynamodb as dynamodb,
-    aws_glue as glue,
-    aws_iam as iam,
-    aws_kms as kms,
-    aws_lambda as lambda_,
-    aws_logs as logs,
-    aws_s3 as s3,
-    aws_s3_deployment as s3deploy,
-    aws_sns as sns,
-    aws_ssm as ssm,
 )
-import aws_cdk.aws_glue_alpha as glue_alpha
+from aws_cdk import aws_athena as athena
+from aws_cdk import aws_cloudwatch as cloudwatch
+from aws_cdk import aws_cloudwatch_actions as cloudwatch_actions
+from aws_cdk import aws_dynamodb as dynamodb
+from aws_cdk import aws_glue as glue
+from aws_cdk import aws_iam as iam
+from aws_cdk import aws_kms as kms
+from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_logs as logs
+from aws_cdk import aws_s3 as s3
+from aws_cdk import aws_s3_deployment as s3deploy
+from aws_cdk import aws_sns as sns
+from aws_cdk import aws_ssm as ssm
 from constructs import Construct
 
 
@@ -86,9 +86,9 @@ class InfrastructureStack(Stack):
         glue_script_deployment = s3deploy.BucketDeployment(
             self,
             "GlueScriptDeployment",
-            sources=[s3deploy.Source.asset(
-                os.path.join(os.path.dirname(__file__), "..", "src", "glue")
-            )],
+            sources=[
+                s3deploy.Source.asset(os.path.join(os.path.dirname(__file__), "..", "src", "glue"))
+            ],
             destination_bucket=assets_bucket,
             destination_key_prefix="scripts",
         )
@@ -98,12 +98,8 @@ class InfrastructureStack(Stack):
             self,
             "SingleTable",
             table_name="aws-glue-demo-single-table",
-            partition_key=dynamodb.Attribute(
-                name="PK", type=dynamodb.AttributeType.STRING
-            ),
-            sort_key=dynamodb.Attribute(
-                name="SK", type=dynamodb.AttributeType.STRING
-            ),
+            partition_key=dynamodb.Attribute(name="PK", type=dynamodb.AttributeType.STRING),
+            sort_key=dynamodb.Attribute(name="SK", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
             encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
@@ -113,31 +109,36 @@ class InfrastructureStack(Stack):
         # ── SSM Parameter Store — resource discovery (Phase 4) ───────────────────
         # The Glue ETL script reads these at runtime; no ARNs/names in source code.
         ssm.StringParameter(
-            self, "SsmKmsKeyArn",
+            self,
+            "SsmKmsKeyArn",
             parameter_name="/hr-pipeline/kms-key-arn",
             string_value=encryption_key.key_arn,
             description="CMK ARN for HR pipeline encryption",
         )
         ssm.StringParameter(
-            self, "SsmRawBucketName",
+            self,
+            "SsmRawBucketName",
             parameter_name="/hr-pipeline/raw-bucket-name",
             string_value=raw_bucket.bucket_name,
             description="Raw CSV input bucket name",
         )
         ssm.StringParameter(
-            self, "SsmParquetBucketName",
+            self,
+            "SsmParquetBucketName",
             parameter_name="/hr-pipeline/parquet-bucket-name",
             string_value=parquet_bucket.bucket_name,
             description="Parquet output bucket name",
         )
         ssm.StringParameter(
-            self, "SsmDynamoTableName",
+            self,
+            "SsmDynamoTableName",
             parameter_name="/hr-pipeline/dynamodb-table-name",
             string_value=table.table_name,
             description="DynamoDB single-table name",
         )
         ssm.StringParameter(
-            self, "SsmQuarantineBucketName",
+            self,
+            "SsmQuarantineBucketName",
             parameter_name="/hr-pipeline/quarantine-bucket-name",
             string_value=quarantine_bucket.bucket_name,
             description="Quarantine bucket — receives DQ-rejected rows from the ETL job",
@@ -149,9 +150,7 @@ class InfrastructureStack(Stack):
             "GlueJobRole",
             assumed_by=iam.ServicePrincipal("glue.amazonaws.com"),
             managed_policies=[
-                iam.ManagedPolicy.from_aws_managed_policy_name(
-                    "service-role/AWSGlueServiceRole"
-                )
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSGlueServiceRole")
             ],
         )
 
@@ -159,7 +158,8 @@ class InfrastructureStack(Stack):
         # Consolidates all data permissions into one construct, replacing the
         # previous scattered add_to_policy calls and broad grant_write_data().
         iam.ManagedPolicy(
-            self, "GlueDataAccessPolicy",
+            self,
+            "GlueDataAccessPolicy",
             description="Scoped data-access permissions for the HR ETL Glue job",
             roles=[glue_role],
             statements=[
@@ -184,9 +184,7 @@ class InfrastructureStack(Stack):
                     actions=["s3:ListBucket"],
                     resources=[parquet_bucket.bucket_arn],
                     conditions={
-                        "StringLike": {
-                            "s3:prefix": ["employees/*", "employees_staging/*"]
-                        }
+                        "StringLike": {"s3:prefix": ["employees/*", "employees_staging/*"]}
                     },
                 ),
                 # GetObject added: _atomic_parquet_write uses s3:copy_object with the
@@ -283,10 +281,10 @@ class InfrastructureStack(Stack):
                 "--job-language": "python",
                 "--enable-continuous-cloudwatch-log": "true",
                 # Phase 4: Incremental processing + observability
-                "--job-bookmark-option":           "job-bookmark-enable",
-                "--enable-metrics":                "",
-                "--enable-observability-metrics":  "true",
-                "--enable-glue-datacatalog":       "",
+                "--job-bookmark-option": "job-bookmark-enable",
+                "--enable-metrics": "",
+                "--enable-observability-metrics": "true",
+                "--enable-glue-datacatalog": "",
             },
             role=glue_role,
         )
@@ -360,20 +358,20 @@ class InfrastructureStack(Stack):
             "Raw employee CSV data — source for ETL",
             f"s3://{raw_bucket.bucket_name}/raw/employees/",
             [
-                glue.CfnTable.ColumnProperty(name="EmployeeID",       type="int"),
-                glue.CfnTable.ColumnProperty(name="FirstName",        type="string"),
-                glue.CfnTable.ColumnProperty(name="LastName",         type="string"),
-                glue.CfnTable.ColumnProperty(name="Email",            type="string"),
-                glue.CfnTable.ColumnProperty(name="DeptID",           type="int"),
-                glue.CfnTable.ColumnProperty(name="Department",       type="string"),
-                glue.CfnTable.ColumnProperty(name="JobTitle",         type="string"),
-                glue.CfnTable.ColumnProperty(name="Salary",           type="int"),
-                glue.CfnTable.ColumnProperty(name="HireDate",         type="string"),
-                glue.CfnTable.ColumnProperty(name="City",             type="string"),
-                glue.CfnTable.ColumnProperty(name="State",            type="string"),
+                glue.CfnTable.ColumnProperty(name="EmployeeID", type="int"),
+                glue.CfnTable.ColumnProperty(name="FirstName", type="string"),
+                glue.CfnTable.ColumnProperty(name="LastName", type="string"),
+                glue.CfnTable.ColumnProperty(name="Email", type="string"),
+                glue.CfnTable.ColumnProperty(name="DeptID", type="int"),
+                glue.CfnTable.ColumnProperty(name="Department", type="string"),
+                glue.CfnTable.ColumnProperty(name="JobTitle", type="string"),
+                glue.CfnTable.ColumnProperty(name="Salary", type="int"),
+                glue.CfnTable.ColumnProperty(name="HireDate", type="string"),
+                glue.CfnTable.ColumnProperty(name="City", type="string"),
+                glue.CfnTable.ColumnProperty(name="State", type="string"),
                 glue.CfnTable.ColumnProperty(name="EmploymentStatus", type="string"),
-                glue.CfnTable.ColumnProperty(name="ManagerID",        type="int"),
-                glue.CfnTable.ColumnProperty(name="Manager",          type="string"),
+                glue.CfnTable.ColumnProperty(name="ManagerID", type="int"),
+                glue.CfnTable.ColumnProperty(name="Manager", type="string"),
             ],
         )
 
@@ -383,12 +381,12 @@ class InfrastructureStack(Stack):
             "Raw managers CSV data — lookup table for ETL",
             f"s3://{raw_bucket.bucket_name}/raw/managers/",
             [
-                glue.CfnTable.ColumnProperty(name="ManagerID",    type="int"),
-                glue.CfnTable.ColumnProperty(name="ManagerName",  type="string"),
-                glue.CfnTable.ColumnProperty(name="Department",   type="string"),
+                glue.CfnTable.ColumnProperty(name="ManagerID", type="int"),
+                glue.CfnTable.ColumnProperty(name="ManagerName", type="string"),
+                glue.CfnTable.ColumnProperty(name="Department", type="string"),
                 glue.CfnTable.ColumnProperty(name="ManagerEmail", type="string"),
-                glue.CfnTable.ColumnProperty(name="IsActive",     type="string"),
-                glue.CfnTable.ColumnProperty(name="Level",        type="string"),
+                glue.CfnTable.ColumnProperty(name="IsActive", type="string"),
+                glue.CfnTable.ColumnProperty(name="Level", type="string"),
             ],
         )
 
@@ -398,11 +396,11 @@ class InfrastructureStack(Stack):
             "Raw departments CSV data — lookup table for ETL",
             f"s3://{raw_bucket.bucket_name}/raw/departments/",
             [
-                glue.CfnTable.ColumnProperty(name="DeptID",           type="int"),
-                glue.CfnTable.ColumnProperty(name="DepartmentName",   type="string"),
-                glue.CfnTable.ColumnProperty(name="Budget",           type="int"),
-                glue.CfnTable.ColumnProperty(name="MinSalaryRange",   type="int"),
-                glue.CfnTable.ColumnProperty(name="MaxSalaryRange",   type="int"),
+                glue.CfnTable.ColumnProperty(name="DeptID", type="int"),
+                glue.CfnTable.ColumnProperty(name="DepartmentName", type="string"),
+                glue.CfnTable.ColumnProperty(name="Budget", type="int"),
+                glue.CfnTable.ColumnProperty(name="MinSalaryRange", type="int"),
+                glue.CfnTable.ColumnProperty(name="MaxSalaryRange", type="int"),
                 glue.CfnTable.ColumnProperty(name="IsRemoteFriendly", type="string"),
             ],
         )
@@ -430,36 +428,36 @@ class InfrastructureStack(Stack):
                         parameters={"serialization.format": "1"},
                     ),
                     columns=[
-                        glue.CfnTable.ColumnProperty(name="EmployeeID",         type="int"),
-                        glue.CfnTable.ColumnProperty(name="FirstName",          type="string"),
-                        glue.CfnTable.ColumnProperty(name="LastName",           type="string"),
-                        glue.CfnTable.ColumnProperty(name="Email",              type="string"),
-                        glue.CfnTable.ColumnProperty(name="DeptID",             type="string"),
-                        glue.CfnTable.ColumnProperty(name="Department",         type="string"),
-                        glue.CfnTable.ColumnProperty(name="JobTitle",           type="string"),
-                        glue.CfnTable.ColumnProperty(name="Salary",             type="double"),
-                        glue.CfnTable.ColumnProperty(name="HireDate",           type="date"),
-                        glue.CfnTable.ColumnProperty(name="City",               type="string"),
-                        glue.CfnTable.ColumnProperty(name="State",              type="string"),
-                        glue.CfnTable.ColumnProperty(name="EmploymentStatus",   type="string"),
-                        glue.CfnTable.ColumnProperty(name="ManagerID",          type="string"),
-                        glue.CfnTable.ColumnProperty(name="Manager",            type="string"),
-                        glue.CfnTable.ColumnProperty(name="DepartmentName",     type="string"),
-                        glue.CfnTable.ColumnProperty(name="MaxSalaryRange",     type="double"),
-                        glue.CfnTable.ColumnProperty(name="MinSalaryRange",     type="double"),
-                        glue.CfnTable.ColumnProperty(name="Budget",             type="bigint"),
-                        glue.CfnTable.ColumnProperty(name="ManagerName",        type="string"),
-                        glue.CfnTable.ColumnProperty(name="IsActive",           type="string"),
-                        glue.CfnTable.ColumnProperty(name="Level",              type="string"),
+                        glue.CfnTable.ColumnProperty(name="EmployeeID", type="int"),
+                        glue.CfnTable.ColumnProperty(name="FirstName", type="string"),
+                        glue.CfnTable.ColumnProperty(name="LastName", type="string"),
+                        glue.CfnTable.ColumnProperty(name="Email", type="string"),
+                        glue.CfnTable.ColumnProperty(name="DeptID", type="string"),
+                        glue.CfnTable.ColumnProperty(name="Department", type="string"),
+                        glue.CfnTable.ColumnProperty(name="JobTitle", type="string"),
+                        glue.CfnTable.ColumnProperty(name="Salary", type="double"),
+                        glue.CfnTable.ColumnProperty(name="HireDate", type="date"),
+                        glue.CfnTable.ColumnProperty(name="City", type="string"),
+                        glue.CfnTable.ColumnProperty(name="State", type="string"),
+                        glue.CfnTable.ColumnProperty(name="EmploymentStatus", type="string"),
+                        glue.CfnTable.ColumnProperty(name="ManagerID", type="string"),
+                        glue.CfnTable.ColumnProperty(name="Manager", type="string"),
+                        glue.CfnTable.ColumnProperty(name="DepartmentName", type="string"),
+                        glue.CfnTable.ColumnProperty(name="MaxSalaryRange", type="double"),
+                        glue.CfnTable.ColumnProperty(name="MinSalaryRange", type="double"),
+                        glue.CfnTable.ColumnProperty(name="Budget", type="bigint"),
+                        glue.CfnTable.ColumnProperty(name="ManagerName", type="string"),
+                        glue.CfnTable.ColumnProperty(name="IsActive", type="string"),
+                        glue.CfnTable.ColumnProperty(name="Level", type="string"),
                         glue.CfnTable.ColumnProperty(name="HighestTitleSalary", type="double"),
-                        glue.CfnTable.ColumnProperty(name="CompaRatio",         type="double"),
-                        glue.CfnTable.ColumnProperty(name="RequiresReview",     type="boolean"),
+                        glue.CfnTable.ColumnProperty(name="CompaRatio", type="double"),
+                        glue.CfnTable.ColumnProperty(name="RequiresReview", type="boolean"),
                     ],
                 ),
                 partition_keys=[
-                    glue.CfnTable.ColumnProperty(name="year",  type="int"),
+                    glue.CfnTable.ColumnProperty(name="year", type="int"),
                     glue.CfnTable.ColumnProperty(name="month", type="int"),
-                    glue.CfnTable.ColumnProperty(name="dept",  type="string"),
+                    glue.CfnTable.ColumnProperty(name="dept", type="string"),
                 ],
             ),
         )
@@ -482,7 +480,7 @@ class InfrastructureStack(Stack):
                 "schema": "hr_analytics",
                 "columns": [
                     {"name": "data_source", "type": "varchar"},
-                    {"name": "row_count",   "type": "bigint"},
+                    {"name": "row_count", "type": "bigint"},
                 ],
                 "owner": "admin",
                 "runAsInvoker": False,
@@ -512,7 +510,7 @@ class InfrastructureStack(Stack):
                     ),
                     columns=[
                         glue.CfnTable.ColumnProperty(name="data_source", type="string"),
-                        glue.CfnTable.ColumnProperty(name="row_count",   type="bigint"),
+                        glue.CfnTable.ColumnProperty(name="row_count", type="bigint"),
                     ],
                 ),
             ),
@@ -535,7 +533,8 @@ class InfrastructureStack(Stack):
                 ),
                 publish_cloud_watch_metrics_enabled=True,
                 enforce_work_group_configuration=True,
-                bytes_scanned_cutoff_per_query=104857600,  # 100 MB hard cap — prevents runaway scan cost
+                # 100 MB hard cap — prevents runaway scan cost
+                bytes_scanned_cutoff_per_query=104857600,
             ),
             recursive_delete_option=True,
         )
@@ -547,9 +546,7 @@ class InfrastructureStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="handler.handler",
             code=lambda_.Code.from_asset(
-                os.path.join(
-                    os.path.dirname(__file__), "..", "src", "lambda"
-                )
+                os.path.join(os.path.dirname(__file__), "..", "src", "lambda")
             ),
             timeout=Duration.seconds(30),
         )
@@ -653,9 +650,7 @@ class InfrastructureStack(Stack):
             evaluation_periods=1,
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
-        glue_failure_alarm.add_alarm_action(
-            cloudwatch_actions.SnsAction(alerts_topic)
-        )
+        glue_failure_alarm.add_alarm_action(cloudwatch_actions.SnsAction(alerts_topic))
 
         # ── Reconciliation Mismatch Alarm ─────────────────────────────────────────
         # The src/reconciliation/reconcile.py script publishes a custom metric
@@ -685,12 +680,12 @@ class InfrastructureStack(Stack):
         ).add_alarm_action(cloudwatch_actions.SnsAction(alerts_topic))
 
         # ── Stack Outputs ─────────────────────────────────────────────────────────
-        cdk.CfnOutput(self, "RawBucketName",        value=raw_bucket.bucket_name)
-        cdk.CfnOutput(self, "ParquetBucketName",    value=parquet_bucket.bucket_name)
-        cdk.CfnOutput(self, "AssetsBucketName",     value=assets_bucket.bucket_name)
+        cdk.CfnOutput(self, "RawBucketName", value=raw_bucket.bucket_name)
+        cdk.CfnOutput(self, "ParquetBucketName", value=parquet_bucket.bucket_name)
+        cdk.CfnOutput(self, "AssetsBucketName", value=assets_bucket.bucket_name)
         cdk.CfnOutput(self, "QuarantineBucketName", value=quarantine_bucket.bucket_name)
-        cdk.CfnOutput(self, "GlueJobName",          value=glue_job.job_name)
-        cdk.CfnOutput(self, "LambdaFunctionName",   value=lambda_fn.function_name)
-        cdk.CfnOutput(self, "DynamoTableName",      value=table.table_name)
-        cdk.CfnOutput(self, "KmsKeyArn",            value=encryption_key.key_arn)
-        cdk.CfnOutput(self, "AlertsTopicArn",       value=alerts_topic.topic_arn)
+        cdk.CfnOutput(self, "GlueJobName", value=glue_job.job_name)
+        cdk.CfnOutput(self, "LambdaFunctionName", value=lambda_fn.function_name)
+        cdk.CfnOutput(self, "DynamoTableName", value=table.table_name)
+        cdk.CfnOutput(self, "KmsKeyArn", value=encryption_key.key_arn)
+        cdk.CfnOutput(self, "AlertsTopicArn", value=alerts_topic.topic_arn)

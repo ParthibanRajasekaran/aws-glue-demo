@@ -1,4 +1,5 @@
 """Glue Data Catalog setup utilities for the Employee ETL pipeline."""
+
 import logging
 import time
 
@@ -72,9 +73,7 @@ def create_crawler(config: Config, role_arn: str) -> None:
             RecrawlPolicy={"RecrawlBehavior": "CRAWL_EVERYTHING"},
             Description="Crawls raw employee CSV data from S3",
         )
-        logger.info(
-            "Created Glue crawler '%s' targeting %s", crawler_name, target_path
-        )
+        logger.info("Created Glue crawler '%s' targeting %s", crawler_name, target_path)
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "AlreadyExistsException":
             logger.info("Glue crawler already exists: %s — reconciling config", crawler_name)
@@ -117,9 +116,7 @@ def run_crawler(config: Config) -> None:
     state = info.get("State", "READY")
 
     if state == "RUNNING":
-        logger.warning(
-            "Crawler '%s' is already RUNNING – waiting for completion.", crawler_name
-        )
+        logger.warning("Crawler '%s' is already RUNNING – waiting for completion.", crawler_name)
     else:
         if state == "STOPPING":
             logger.warning(
@@ -131,7 +128,10 @@ def run_crawler(config: Config) -> None:
                 state = info.get("State", "UNKNOWN")
                 logger.info(
                     "Crawler '%s' – pre-start poll %d/%d – state: %s",
-                    crawler_name, poll, _MAX_POLLS, state,
+                    crawler_name,
+                    poll,
+                    _MAX_POLLS,
+                    state,
                 )
                 if state == "READY":
                     break
@@ -153,7 +153,10 @@ def run_crawler(config: Config) -> None:
         current_state = info.get("State", "UNKNOWN")
         logger.info(
             "Crawler '%s' – poll %d/%d – state: %s",
-            crawler_name, poll, _MAX_POLLS, current_state,
+            crawler_name,
+            poll,
+            _MAX_POLLS,
+            current_state,
         )
 
         if current_state == "READY":
@@ -203,7 +206,9 @@ def get_catalog_table(config: Config, table_name: str) -> dict:
         col_count = len(table.get("StorageDescriptor", {}).get("Columns", []))
         logger.info(
             "Found catalog table %s.%s (%d columns)",
-            config.GLUE_DATABASE_NAME, table_name, col_count,
+            config.GLUE_DATABASE_NAME,
+            table_name,
+            col_count,
         )
         return table
     except ClientError as exc:

@@ -1,4 +1,5 @@
 """S3 setup utilities for the Employee ETL pipeline."""
+
 import logging
 import os
 
@@ -45,9 +46,7 @@ def create_bucket(config: Config) -> str:
         if code in ("BucketAlreadyOwnedByYou", "BucketAlreadyExists"):
             logger.info("S3 bucket already exists (owned by this account): %s", bucket)
         else:
-            raise BucketCreationError(
-                f"Failed to create bucket '{bucket}': {exc}"
-            ) from exc
+            raise BucketCreationError(f"Failed to create bucket '{bucket}': {exc}") from exc
 
     return bucket
 
@@ -138,7 +137,5 @@ def verify_upload(config: Config, s3_key: str) -> bool:
         logger.info("Verified object exists: s3://%s/%s", config.S3_BUCKET_NAME, s3_key)
         return True
     except ClientError:
-        logger.warning(
-            "Object not found: s3://%s/%s", config.S3_BUCKET_NAME, s3_key
-        )
+        logger.warning("Object not found: s3://%s/%s", config.S3_BUCKET_NAME, s3_key)
         return False

@@ -1,9 +1,10 @@
 """Orchestrates all Phase 1 setup steps for the Employee ETL pipeline."""
+
 import logging
 import time
 
+from src import dynamodb_setup, glue_setup, iam_setup, s3_setup
 from src.config import Config
-from src import s3_setup, iam_setup, glue_setup, dynamodb_setup
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,7 +62,7 @@ def run() -> None:
     _run_step("Verify Upload", _assert_upload, config, s3_key)
 
     # ── Step 6: Create Glue IAM Role ──────────────────────────────────────────
-    role_arn = _run_step("Create Glue IAM Role", iam_setup.create_glue_role, config)
+    _run_step("Create Glue IAM Role", iam_setup.create_glue_role, config)
 
     # ── Step 7: Attach Managed Policies ───────────────────────────────────────
     _run_step(
@@ -105,9 +106,7 @@ def run() -> None:
         config,
         config.GLUE_TABLE_NAME,
     )
-    col_count = len(
-        catalog_table.get("StorageDescriptor", {}).get("Columns", [])
-    )
+    col_count = len(catalog_table.get("StorageDescriptor", {}).get("Columns", []))
 
     # ── Step 13: Validate existing DynamoDB billing mode ──────────────────────
     _run_step(
@@ -134,7 +133,7 @@ S3 Bucket     : s3://{config.S3_BUCKET_NAME}
 File Uploaded : {s3_uri}
 IAM Role ARN  : {resolved_role_arn}
 Glue Database : {config.GLUE_DATABASE_NAME}
-Catalog Table : {config.GLUE_DATABASE_NAME}.{config.GLUE_TABLE_NAME} ({col_count} columns catalogued)
+Catalog Table : {config.GLUE_DATABASE_NAME}.{config.GLUE_TABLE_NAME} ({col_count} columns)
 DynamoDB Table: {config.DYNAMODB_TABLE_NAME} (PAY_PER_REQUEST, ACTIVE)
 
 Ready for Phase 2: PySpark ETL job implementation.

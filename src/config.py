@@ -1,7 +1,9 @@
 """Configuration dataclass for the AWS Glue Employee ETL pipeline."""
+
 import os
-import boto3
 from dataclasses import dataclass, field
+
+import boto3
 
 
 def _get_region() -> str:

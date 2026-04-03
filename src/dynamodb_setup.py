@@ -1,4 +1,5 @@
 """DynamoDB setup utilities for the Employee ETL pipeline."""
+
 import logging
 import time
 
@@ -85,7 +86,8 @@ def create_table(config: Config) -> str:
             arn = desc["TableArn"]
             logger.info(
                 "DynamoDB table '%s' already exists (PAY_PER_REQUEST). ARN: %s",
-                table_name, arn,
+                table_name,
+                arn,
             )
             return arn
         raise
@@ -131,7 +133,5 @@ def get_table_status(config: Config) -> str:
         return response["Table"]["TableStatus"]
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "ResourceNotFoundException":
-            raise TableNotFoundError(
-                f"DynamoDB table '{table_name}' does not exist."
-            ) from exc
+            raise TableNotFoundError(f"DynamoDB table '{table_name}' does not exist.") from exc
         raise

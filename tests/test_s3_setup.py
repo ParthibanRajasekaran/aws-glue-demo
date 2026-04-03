@@ -1,25 +1,25 @@
 """Unit tests for src/s3_setup.py using moto."""
+
 import os
 import tempfile
-import pytest
-from unittest.mock import patch, MagicMock
-from moto import mock_aws
+from unittest.mock import patch
 
 import boto3
-import botocore
-
+import pytest
+from moto import mock_aws
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_config():
     """
     Return a Config-like object that doesn't touch real AWS.
     We build it manually so no STS call is made and no real profile is needed.
     """
+
     from src.config import Config
-    from dataclasses import fields
 
     # Bypass __post_init__ by creating the object then overriding attributes
     obj = object.__new__(Config)
@@ -46,11 +46,13 @@ def _moto_session(config):
 # create_bucket
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 @mock_aws
 def test_create_bucket_success():
     """create_bucket should return the bucket name and the bucket should exist."""
     import src.s3_setup as mod
+
     config = _make_config()
 
     with patch.object(mod, "_session", side_effect=_moto_session):
@@ -68,10 +70,11 @@ def test_create_bucket_success():
 def test_create_bucket_idempotent():
     """Calling create_bucket twice should not raise and should return the same name."""
     import src.s3_setup as mod
+
     config = _make_config()
 
     with patch.object(mod, "_session", side_effect=_moto_session):
-        first  = mod.create_bucket(config)
+        first = mod.create_bucket(config)
         second = mod.create_bucket(config)
 
     assert first == second
@@ -81,11 +84,13 @@ def test_create_bucket_idempotent():
 # configure_bucket_security
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 @mock_aws
 def test_configure_bucket_security_versioning():
     """configure_bucket_security should enable versioning on the bucket."""
     import src.s3_setup as mod
+
     config = _make_config()
 
     with patch.object(mod, "_session", side_effect=_moto_session):
@@ -102,6 +107,7 @@ def test_configure_bucket_security_versioning():
 def test_configure_bucket_security_public_access_blocked():
     """configure_bucket_security should block all public access."""
     import src.s3_setup as mod
+
     config = _make_config()
 
     with patch.object(mod, "_session", side_effect=_moto_session):
@@ -123,6 +129,7 @@ def test_configure_bucket_security_public_access_blocked():
 def test_configure_bucket_security_encryption():
     """configure_bucket_security should enforce SSE-S3 default encryption."""
     import src.s3_setup as mod
+
     config = _make_config()
 
     with patch.object(mod, "_session", side_effect=_moto_session):
@@ -139,11 +146,13 @@ def test_configure_bucket_security_encryption():
 # upload_file
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 @mock_aws
 def test_upload_file_success():
     """upload_file should return the S3 URI and the object should be reachable."""
     import src.s3_setup as mod
+
     config = _make_config()
 
     with patch.object(mod, "_session", side_effect=_moto_session):
@@ -170,6 +179,7 @@ def test_upload_file_success():
 def test_upload_file_not_found():
     """upload_file should raise FileNotFoundError for a non-existent local path."""
     import src.s3_setup as mod
+
     config = _make_config()
 
     with patch.object(mod, "_session", side_effect=_moto_session):
@@ -182,11 +192,13 @@ def test_upload_file_not_found():
 # verify_upload
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 @mock_aws
 def test_verify_upload_returns_true():
     """verify_upload should return True when the object exists."""
     import src.s3_setup as mod
+
     config = _make_config()
 
     with patch.object(mod, "_session", side_effect=_moto_session):
@@ -206,6 +218,7 @@ def test_verify_upload_returns_true():
 def test_verify_upload_returns_false():
     """verify_upload should return False when the object does not exist."""
     import src.s3_setup as mod
+
     config = _make_config()
 
     with patch.object(mod, "_session", side_effect=_moto_session):
