@@ -26,6 +26,7 @@ def test_create_crawler_reconciles_existing():
     mock_glue = MagicMock()
     error = {"Error": {"Code": "AlreadyExistsException", "Message": "exists"}}
     mock_glue.create_crawler.side_effect = ClientError(error, "CreateCrawler")
+    mock_glue.get_crawler.return_value = {"Crawler": {"Schedule": None}}
     mock_session = MagicMock()
     mock_session.client.return_value = mock_glue
 
@@ -52,3 +53,19 @@ def test_run_crawler_waits_if_already_running():
         glue_setup.run_crawler(config)
 
     mock_glue.start_crawler.assert_not_called()
+
+
+@pytest.mark.unit
+def test_create_crawler_raises_when_schedule_present():
+    config = _make_config()
+    mock_glue = MagicMock()
+    error = {"Error": {"Code": "AlreadyExistsException", "Message": "exists"}}
+    mock_glue.create_crawler.side_effect = ClientError(error, "CreateCrawler")
+    mock_glue.get_crawler.return_value = {"Crawler": {"Schedule": {"ScheduleExpression": "cron(...)"}}
+    }
+    mock_session = MagicMock()
+    mock_session.client.return_value = mock_glue
+
+    with patch.object(glue_setup, "_session", return_value=mock_session):
+        with pytest.raises(glue_setup.CrawlerConfigurationError):
+            glue_setup.create_crawler(config, "arn:aws:iam::123456789012:role/test")

@@ -25,6 +25,10 @@ class TableNotFoundError(Exception):
     """Raised when a requested Glue catalog table does not exist."""
 
 
+class CrawlerConfigurationError(Exception):
+    """Raised when an existing crawler has unsafe configuration drift."""
+
+
 def _session(config: Config) -> boto3.Session:
     return boto3.Session(profile_name=config.aws_profile, region_name=config.aws_region)
 
@@ -74,6 +78,12 @@ def create_crawler(config: Config, role_arn: str) -> None:
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "AlreadyExistsException":
             logger.info("Glue crawler already exists: %s — reconciling config", crawler_name)
+            existing = glue.get_crawler(Name=crawler_name)["Crawler"]
+            if existing.get("Schedule"):
+                raise CrawlerConfigurationError(
+                    f"Crawler '{crawler_name}' has a schedule configured. "
+                    "Disable the schedule before running this pipeline."
+                )
             glue.update_crawler(
                 Name=crawler_name,
                 Role=role_arn,
@@ -84,7 +94,6 @@ def create_crawler(config: Config, role_arn: str) -> None:
                     "DeleteBehavior": "LOG",
                 },
                 RecrawlPolicy={"RecrawlBehavior": "CRAWL_EVERYTHING"},
-                Schedule="",
             )
             logger.info("Reconciled crawler '%s' with desired config", crawler_name)
         else:
