@@ -92,9 +92,13 @@ def run_etl_transformations(spark, employees_data, departments_data, managers_da
         "CompaRatio",
         F.round(F.col("Salary") / F.col("MaxSalaryRange"), 2),
     )
+    # IsActive null means the LEFT JOIN found no matching manager row.
+    # Unknown supervision is treated as a risk requiring HR review (mirrors etl_job.py).
     enriched = enriched.withColumn(
         "RequiresReview",
-        (F.col("CompaRatio") > F.lit(1.0)) | (F.col("IsActive") == F.lit("False")),
+        (F.col("CompaRatio") > F.lit(1.0))
+        | (F.col("IsActive") == F.lit("False"))
+        | F.col("IsActive").isNull(),
     )
     return enriched
 
@@ -325,7 +329,7 @@ class TestJoins:
         assert row["ManagerName"] == "Alice Smith"
 
     def test_null_managerid_left_join_does_not_raise(self, spark):
-        """Employee with no matching manager gets null ManagerName — no exception."""
+        """Employee with no matching manager gets null ManagerName and RequiresReview=True."""
         employees = [
             {
                 "EmployeeID": "32",
@@ -343,6 +347,10 @@ class TestJoins:
         df = run_etl_transformations(spark, employees, DEPARTMENTS, MANAGERS)
         row = df.collect()[0]
         assert row["ManagerName"] is None
+        assert row["RequiresReview"] is True, (
+            "Unmatched manager (null IsActive) must flag RequiresReview — "
+            "unknown supervision is a compensation risk"
+        )
 
 
 class TestCompaRatioBoundary:
@@ -366,3 +374,51 @@ class TestCompaRatioBoundary:
         row = df.collect()[0]
         assert row["CompaRatio"] == 1.0
         assert row["RequiresReview"] is False, "Exactly at band max should not flag RequiresReview"
+
+
+class TestCircuitBreakerNullDept:
+    def test_unmatched_deptid_produces_null_comparatio(self, spark):
+        """Employee whose DeptID has no match in departments gets null CompaRatio.
+        The row-level circuit breaker must catch this before it reaches any sink.
+        """
+        employees = [
+            {
+                "EmployeeID": "50",
+                "DeptID": "9999",  # no matching department
+                "ManagerID": "2000",
+                "JobTitle": "AE",
+                "Salary": 70000,
+                "FirstName": "AA",
+                "LastName": "BB",
+                "Email": "aa@example.com",
+                "Department": "",
+                "Manager": "Alice",
+            },
+        ]
+        df = run_etl_transformations(spark, employees, DEPARTMENTS, MANAGERS)
+        row = df.collect()[0]
+        # CompaRatio = salary / null = null — circuit breaker must quarantine this row
+        assert (
+            row["CompaRatio"] is None
+        ), "Unmatched dept produces null CompaRatio — row must be quarantined"
+
+    def test_matched_deptid_produces_valid_comparatio(self, spark):
+        """Control case: matched dept produces a numeric CompaRatio."""
+        employees = [
+            {
+                "EmployeeID": "51",
+                "DeptID": "500",
+                "ManagerID": "2000",
+                "JobTitle": "AE",
+                "Salary": 75000,
+                "FirstName": "CC",
+                "LastName": "DD",
+                "Email": "cc@example.com",
+                "Department": "Sales",
+                "Manager": "Alice",
+            },
+        ]
+        df = run_etl_transformations(spark, employees, DEPARTMENTS, MANAGERS)
+        row = df.collect()[0]
+        assert row["CompaRatio"] == 0.75
+        assert row["CompaRatio"] is not None

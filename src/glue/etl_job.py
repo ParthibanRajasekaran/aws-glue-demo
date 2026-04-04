@@ -169,10 +169,14 @@ enriched = enriched.withColumn(
     F.round(F.col("salary") / F.col("maxsalaryrange"), 2),
 )
 
-# isactive is stored as the string "True" / "False" — never cast to boolean
+# isactive is stored as the string "True" / "False" — never cast to boolean.
+# isactive null means the LEFT JOIN found no matching manager row; unknown
+# supervision is treated as a risk requiring HR review.
 enriched = enriched.withColumn(
     "requiresreview",
-    (F.col("comparatio") > F.lit(1.0)) | (F.col("isactive") == F.lit("False")),
+    (F.col("comparatio") > F.lit(1.0))
+    | (F.col("isactive") == F.lit("False"))
+    | F.col("isactive").isNull(),
 )
 
 # ── Step 6: Data Quality gate — fail-fast before writing to any sink ──────────
@@ -225,7 +229,10 @@ if failed_rules.count() > 0:
 # Quarantine path: s3://<quarantine-bucket>/quarantine/employees/run=<job-name>/
 # The run partition uses the Glue job name so each execution is traceable.
 _bad_rows = enriched.filter(
-    F.col("employeeid").isNull() | F.col("salary").isNull() | (F.col("salary") <= 0)
+    F.col("employeeid").isNull()
+    | F.col("salary").isNull()
+    | (F.col("salary") <= 0)
+    | F.col("comparatio").isNull()  # unmatched dept — cannot assess pay-band compliance
 )
 _bad_count = _bad_rows.count()
 if _bad_count > 0:
@@ -239,6 +246,7 @@ if _bad_count > 0:
         "_quarantine_reason",
         F.when(F.col("employeeid").isNull(), F.lit("null_employeeid"))
         .when(F.col("salary").isNull(), F.lit("null_salary"))
+        .when(F.col("comparatio").isNull(), F.lit("null_comparatio_unmatched_dept"))
         .otherwise(F.lit("negative_salary")),
     )
     glueContext.write_dynamic_frame.from_options(
@@ -249,10 +257,28 @@ if _bad_count > 0:
         },
         format="json",
     )
+    # Publish a metric so the QuarantinedRowsAlarm fires immediately — the post-ETL
+    # reconciliation script catches count mismatches, but this gives sub-minute
+    # alerting for any individual run that quarantines rows.
+    boto3.client(
+        "cloudwatch", region_name=os.environ.get("AWS_REGION", "us-east-1")
+    ).put_metric_data(
+        Namespace="HRPipeline",
+        MetricData=[
+            {
+                "MetricName": "QuarantinedRowCount",
+                "Value": float(_bad_count),
+                "Unit": "Count",
+            }
+        ],
+    )
 
 # Only rows with a clean RowOutcome proceed to both sinks.
 enriched = enriched.filter(
-    F.col("employeeid").isNotNull() & F.col("salary").isNotNull() & (F.col("salary") > 0)
+    F.col("employeeid").isNotNull()
+    & F.col("salary").isNotNull()
+    & (F.col("salary") > 0)
+    & F.col("comparatio").isNotNull()
 )
 
 # ── Step 7: DynamoDB sink via native Glue DynamicFrame connector ──────────────
@@ -336,6 +362,10 @@ parquet_df = (
     .withColumn("month", F.month(F.col("hiredate")))
     .withColumn("dept", F.col("deptid"))
     .withColumn("lastname", F.sha2(F.col("lastname").cast("string"), 256))
+    # Email is personal data under UK GDPR (ICO guidance) — pseudonymise in the
+    # analytical sink alongside LastName.  The DynamoDB operational sink retains
+    # plain-text email so the HR API can surface contact details to authorised callers.
+    .withColumn("email", F.sha2(F.col("email").cast("string"), 256))
 )
 
 # ── Step 8a: Atomic Parquet write — staging + swap ───────────────────────────

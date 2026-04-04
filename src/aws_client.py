@@ -19,8 +19,6 @@ class AWSClient:
         self._s3_client = None
         self._glue_client = None
         self._ec2_client = None
-        self._lambda_client = None
-        self._dynamodb_client = None
 
     @property
     def s3(self):
@@ -42,20 +40,6 @@ class AWSClient:
         if self._ec2_client is None:
             self._ec2_client = self.session.client("ec2")
         return self._ec2_client
-
-    @property
-    def lambda_client(self):
-        """Get Lambda client"""
-        if self._lambda_client is None:
-            self._lambda_client = self.session.client("lambda")
-        return self._lambda_client
-
-    @property
-    def dynamodb(self):
-        """Get DynamoDB client"""
-        if self._dynamodb_client is None:
-            self._dynamodb_client = self.session.client("dynamodb")
-        return self._dynamodb_client
 
     def list_s3_buckets(self) -> List[str]:
         """List all S3 buckets"""

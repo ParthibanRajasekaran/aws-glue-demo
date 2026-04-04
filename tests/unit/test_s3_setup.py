@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import boto3
 import pytest
+from botocore.exceptions import ClientError
 from moto import mock_aws
 
 # ---------------------------------------------------------------------------
@@ -226,3 +227,27 @@ def test_verify_upload_returns_false():
         result = mod.verify_upload(config, "raw/employees/missing.csv")
 
     assert result is False
+
+
+@pytest.mark.unit
+def test_verify_upload_raises_on_access_denied():
+    """verify_upload should re-raise UploadVerificationError for AccessDenied,
+    not silently return False — so real credential/permission issues are surfaced.
+    """
+    from unittest.mock import MagicMock
+
+    import src.s3_setup as mod
+    from src.s3_setup import UploadVerificationError
+
+    config = _make_config()
+
+    mock_s3 = MagicMock()
+    mock_s3.head_object.side_effect = ClientError(
+        {"Error": {"Code": "403", "Message": "Access Denied"}}, "HeadObject"
+    )
+    mock_session = MagicMock()
+    mock_session.client.return_value = mock_s3
+
+    with patch.object(mod, "_session", return_value=mock_session):
+        with pytest.raises(UploadVerificationError):
+            mod.verify_upload(config, "raw/employees/employee_data.csv")

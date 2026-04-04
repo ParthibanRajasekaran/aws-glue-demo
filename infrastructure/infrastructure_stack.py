@@ -73,6 +73,16 @@ class InfrastructureStack(Stack):
             auto_delete_objects=True,
             encryption=s3.BucketEncryption.KMS,
             encryption_key=encryption_key,
+            # UK GDPR / ICO data retention: quarantine records are forensic evidence,
+            # not operational data.  90 days is sufficient for incident investigation
+            # while avoiding indefinite storage of PII that failed validation.
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    id="QuarantineRetention90Days",
+                    expiration=Duration.days(90),
+                    prefix="quarantine/",
+                )
+            ],
         )
 
         # ── Glue Script Deployment — explicit scripts/ prefix ────────────────────
@@ -252,6 +262,15 @@ class InfrastructureStack(Stack):
                         f"arn:aws:glue:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:database/hr_analytics",
                         f"arn:aws:glue:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:table/hr_analytics/employees",
                     ],
+                ),
+                # cloudwatch:PutMetricData does not support resource-level restrictions;
+                # the namespace condition limits the Glue role to the HRPipeline namespace
+                # only — it cannot publish metrics to any other namespace.
+                iam.PolicyStatement(
+                    sid="CloudWatchQuarantineMetric",
+                    actions=["cloudwatch:PutMetricData"],
+                    resources=["*"],
+                    conditions={"StringEquals": {"cloudwatch:namespace": "HRPipeline"}},
                 ),
             ],
         )
@@ -668,6 +687,33 @@ class InfrastructureStack(Stack):
                 metric_name="ReconciliationMismatch",
                 statistic="Maximum",
                 period=Duration.hours(1),
+            ),
+            threshold=0,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            evaluation_periods=1,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        ).add_alarm_action(cloudwatch_actions.SnsAction(alerts_topic))
+
+        # ── Quarantined Rows Alarm ─────────────────────────────────────────────────
+        # Fires as soon as the ETL job publishes QuarantinedRowCount > 0 — gives
+        # sub-minute alerting for individual records rejected by the row-level DQ
+        # circuit breaker (null EmployeeID/Salary, negative Salary, or unmatched dept).
+        # Complements the ReconciliationMismatch alarm which catches aggregate gaps
+        # only after the post-ETL reconciliation script runs.
+        cloudwatch.Alarm(
+            self,
+            "QuarantinedRowsAlarm",
+            alarm_name="hr-pipeline-quarantined-rows",
+            alarm_description=(
+                "The Glue ETL job quarantined one or more rows in this run. "
+                "Check s3://quarantine-bucket/quarantine/employees/ for the rejected "
+                "records and their _quarantine_reason field."
+            ),
+            metric=cloudwatch.Metric(
+                namespace="HRPipeline",
+                metric_name="QuarantinedRowCount",
+                statistic="Sum",
+                period=Duration.minutes(5),
             ),
             threshold=0,
             comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,

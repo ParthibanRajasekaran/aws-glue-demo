@@ -129,17 +129,32 @@ def upload_file(config: Config, local_path: str, s3_key: str) -> str:
     return uri
 
 
+class UploadVerificationError(Exception):
+    """Raised when upload verification fails for a non-404 reason (e.g. AccessDenied)."""
+
+
 def verify_upload(config: Config, s3_key: str) -> bool:
     """Check whether an object exists in the bucket.
 
     Returns:
-        True if the object exists, False otherwise. Never raises.
+        True if the object exists, False if it does not exist.
+
+    Raises:
+        UploadVerificationError: For any ClientError other than a 404/NoSuchKey
+            (e.g. AccessDenied, invalid credentials, network errors).  Swallowing
+            these would silently mask real pipeline configuration failures.
     """
     s3 = _session(config).client("s3")
     try:
         s3.head_object(Bucket=config.S3_BUCKET_NAME, Key=s3_key)
         logger.info("Verified object exists: s3://%s/%s", config.S3_BUCKET_NAME, s3_key)
         return True
-    except ClientError:
-        logger.warning("Object not found: s3://%s/%s", config.S3_BUCKET_NAME, s3_key)
-        return False
+    except ClientError as exc:
+        code = exc.response["Error"]["Code"]
+        if code in ("404", "NoSuchKey"):
+            logger.warning("Object not found: s3://%s/%s", config.S3_BUCKET_NAME, s3_key)
+            return False
+        raise UploadVerificationError(
+            f"Unexpected error verifying s3://{config.S3_BUCKET_NAME}/{s3_key}: "
+            f"{code} — {exc.response['Error'].get('Message', '')}"
+        ) from exc
